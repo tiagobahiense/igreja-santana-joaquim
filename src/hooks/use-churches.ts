@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { findMatrizChurch } from '@/lib/churches'
 import { getChurches, createChurch, updateChurch, softDeleteChurch, hardDeleteChurch, restoreChurch } from '@/services/firebase/churches'
 import { toast } from '@/hooks/use-toast'
 import { addLog } from '@/services/firebase/logs'
@@ -13,10 +14,18 @@ export function useChurches(includeInactive = false) {
 }
 
 export function useActiveChurches() {
-  const query = useChurches()
+  const query = useChurches(true)
   return {
     ...query,
-    data: (query.data ?? []).filter((c) => c.isActive),
+    data: (query.data ?? []).filter((c) => c.isActive !== false),
+  }
+}
+
+export function useMatrizChurch() {
+  const query = useActiveChurches()
+  return {
+    ...query,
+    data: findMatrizChurch(query.data ?? []),
   }
 }
 

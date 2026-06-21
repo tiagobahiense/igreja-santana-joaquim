@@ -30,7 +30,7 @@ import { Label } from '@/components/ui/label'
 
 export function Expenses() {
   const { user } = useAuthStore()
-  const { data: userChurches = [], isLoading: churchesLoading } = useActiveChurches()
+  const { data: userChurches = [], isLoading: churchesLoading, isError: churchesError } = useActiveChurches()
 
   const createExpense = useCreateExpense()
   const updateExpense = useUpdateExpense()
@@ -128,14 +128,24 @@ export function Expenses() {
   }
 
   if (churchesLoading) {
-    return <div className="p-8 text-center text-muted-foreground">Carregando...</div>
+    return <div className="p-8 text-center text-muted-foreground">Carregando igrejas...</div>
+  }
+
+  if (churchesError) {
+    return (
+      <EmptyState
+        icon={Building2}
+        title="Erro ao carregar igrejas"
+        description="Não foi possível buscar as igrejas. Recarregue a página ou tente novamente em instantes."
+      />
+    )
   }
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Despesas e Entradas"
-        description="Controle financeiro unitário por igreja — o Dashboard traz os agregados e comparativos"
+        title="Financeiro"
+        description="Entradas e saídas por igreja — o Dashboard traz os agregados e comparativos"
       />
 
       {userChurches.length === 0 ? (

@@ -129,7 +129,7 @@ function AppRoutes() {
       />
 
       <Route
-        path="/despesas"
+        path="/financeiro"
         element={
           <AuthGuard>
             <ManagerGuard>
@@ -140,6 +140,8 @@ function AppRoutes() {
           </AuthGuard>
         }
       />
+
+      <Route path="/despesas" element={<Navigate to="/financeiro" replace />} />
 
       <Route
         path="/agenda"

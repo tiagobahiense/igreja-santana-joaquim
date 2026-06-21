@@ -23,6 +23,7 @@ export interface Church {
   id: string
   name: string
   address?: string
+  isMatriz?: boolean
   isActive: boolean
   deletedAt?: Timestamp
   createdAt: Timestamp

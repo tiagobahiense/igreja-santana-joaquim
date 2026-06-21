@@ -4,7 +4,7 @@ import {
   Church,
   Users,
   HandCoins,
-  Receipt,
+  ArrowLeftRight,
   LogOut,
   Menu,
   X,
@@ -39,7 +39,7 @@ const adminNavItems = [
 const managerNavItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/dizimos', icon: HandCoins, label: 'Dízimos' },
-  { to: '/despesas', icon: Receipt, label: 'Despesas' },
+  { to: '/financeiro', icon: ArrowLeftRight, label: 'Financeiro' },
   { to: '/agenda', icon: CalendarDays, label: 'Agenda' },
 ]
 

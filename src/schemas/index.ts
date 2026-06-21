@@ -31,7 +31,6 @@ export const titheDonorSchema = z.object({
   fullName: z.string().min(2, 'Nome deve ter ao menos 2 caracteres'),
   phone: z.string().optional(),
   birthDate: z.string().optional(),
-  churchId: z.string().min(1, 'Selecione uma igreja'),
 })
 
 export const expenseSchema = z.object({

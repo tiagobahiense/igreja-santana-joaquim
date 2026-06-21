@@ -2,11 +2,11 @@ import { useMemo, useState } from 'react'
 import {
   DollarSign, Users, TrendingDown, TrendingUp,
   ChevronDown, ChevronUp, HandCoins,
-  BarChart3, PieChart, Building2, Filter, Cake,
+  BarChart3, PieChart, Building2, Filter, Cake, ArrowLeftRight,
 } from 'lucide-react'
 import ReactECharts from 'echarts-for-react'
 import { useAuthStore } from '@/stores/auth.store'
-import { useChurches, useActiveChurches } from '@/hooks/use-churches'
+import { useChurches, useActiveChurches, useMatrizChurch } from '@/hooks/use-churches'
 import { useTithes, useAllDonationsForYear } from '@/hooks/use-tithes'
 import { useAllSummariesForYear, useSummariesForYear } from '@/hooks/use-summaries'
 import { KpiCard } from '@/components/KpiCard'
@@ -751,13 +751,15 @@ export function Dashboard() {
   const isAdmin = !!user?.isAdmin
   const { data: allChurches = [] } = useChurches()
   const { data: activeChurches = [] } = useActiveChurches()
-  const activeChurchId = user?.activeChurchId ?? activeChurches[0]?.id ?? ''
-  const { data: tithes = [] } = useTithes(activeChurchId)
+  const { data: matrizChurch } = useMatrizChurch()
+  const matrizChurchId = matrizChurch?.id ?? ''
+  const activeChurchId = user?.activeChurchId ?? matrizChurchId ?? activeChurches[0]?.id ?? ''
+  const { data: tithes = [] } = useTithes(matrizChurchId)
   const { data: allSummaries = [] } = useAllSummariesForYear(CURRENT_YEAR)
 
   const activeChurchName = isAdmin
     ? 'Todas as igrejas'
-    : allChurches.find(c => c.id === activeChurchId)?.name ?? 'Geral'
+    : matrizChurch?.name ?? allChurches.find(c => c.id === activeChurchId)?.name ?? 'Geral'
 
   return (
     <div className="space-y-4">
@@ -784,14 +786,14 @@ export function Dashboard() {
           <TabsList className="flex-wrap h-auto gap-1 mb-2">
             <TabsTrigger value="overview" className="gap-1.5"><BarChart3 className="w-3.5 h-3.5" />Visão Geral</TabsTrigger>
             <TabsTrigger value="tithes" className="gap-1.5"><HandCoins className="w-3.5 h-3.5" />Dízimos</TabsTrigger>
-            <TabsTrigger value="expenses" className="gap-1.5"><TrendingDown className="w-3.5 h-3.5" />Despesas</TabsTrigger>
+            <TabsTrigger value="expenses" className="gap-1.5"><ArrowLeftRight className="w-3.5 h-3.5" />Financeiro</TabsTrigger>
             <TabsTrigger value="churches" className="gap-1.5"><Building2 className="w-3.5 h-3.5" />Igrejas</TabsTrigger>
           </TabsList>
           <TabsContent value="overview">
             <TabOverview churchId={activeChurchId} summaries={allSummaries} tithes={tithes} />
           </TabsContent>
           <TabsContent value="tithes">
-            <TabTithes churchId={activeChurchId} tithes={tithes} />
+            <TabTithes churchId={matrizChurchId} tithes={tithes} />
           </TabsContent>
           <TabsContent value="expenses">
             <TabExpenses churchId={activeChurchId} />

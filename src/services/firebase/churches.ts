@@ -17,11 +17,10 @@ import type { Church } from '@/types'
 const col = () => collection(db, 'churches')
 
 export async function getChurches(includeInactive = false): Promise<Church[]> {
-  const q = includeInactive
-    ? query(col(), orderBy('name'))
-    : query(col(), where('isActive', '==', true), orderBy('name'))
-  const snap = await getDocs(q)
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Church)
+  const snap = await getDocs(query(col(), orderBy('name')))
+  const churches = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Church)
+  if (includeInactive) return churches
+  return churches.filter((c) => c.isActive !== false)
 }
 
 export async function getChurch(id: string): Promise<Church | null> {
