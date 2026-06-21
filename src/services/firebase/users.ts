@@ -34,8 +34,11 @@ export async function getUser(uid: string): Promise<UserProfile | null> {
 }
 
 export async function updateManagerChurches(uid: string, churchIds: string[]) {
+  const current = await getUser(uid)
+  const activeStillValid = current?.activeChurchId && churchIds.includes(current.activeChurchId)
   await updateDoc(doc(db, 'users', uid), {
     churchIds,
+    activeChurchId: activeStillValid ? current!.activeChurchId : (churchIds[0] ?? null),
     updatedAt: serverTimestamp(),
   })
 }

@@ -23,7 +23,12 @@ export async function signOut() {
 export async function getUserProfile(uid: string): Promise<UserProfile | null> {
   const snap = await getDoc(doc(db, 'users', uid))
   if (!snap.exists()) return null
-  return { uid, ...snap.data() } as UserProfile
+  const data = snap.data()
+  return {
+    uid,
+    ...data,
+    churchIds: Array.isArray(data.churchIds) ? data.churchIds : [],
+  } as UserProfile
 }
 
 export async function createManagerAccount(

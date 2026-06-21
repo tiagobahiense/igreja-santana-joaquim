@@ -27,7 +27,10 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
       allow create: if isAdmin();
-      allow update: if isOwner(uid) || isAdmin();
+      allow update: if isAdmin() || (
+        isOwner(uid) &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['isAdmin', 'churchIds', 'email'])
+      );
       allow delete: if isAdmin();
     }
 

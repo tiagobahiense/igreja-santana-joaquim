@@ -49,7 +49,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   const userChurches = user?.isAdmin
     ? allChurches
-    : allChurches.filter((c) => user?.churchIds.includes(c.id))
+    : allChurches.filter((c) => (user?.churchIds ?? []).includes(c.id))
 
   const activeChurch = userChurches.find((c) => c.id === user?.activeChurchId) ?? userChurches[0]
 

@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Users as UsersIcon } from 'lucide-react'
+import { Plus, Users as UsersIcon, Pencil } from 'lucide-react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { getManagers } from '@/services/firebase/users'
+import { getManagers, updateManagerChurches } from '@/services/firebase/users'
 import { createManagerAccount } from '@/services/firebase/auth'
 import { addLog } from '@/services/firebase/logs'
 import { useAuthStore } from '@/stores/auth.store'
@@ -29,6 +29,8 @@ export function Managers() {
   })
   const { data: churches = [] } = useChurches()
   const [formOpen, setFormOpen] = useState(false)
+  const [editTarget, setEditTarget] = useState<{ uid: string; name: string; churchIds: string[] } | null>(null)
+  const [editChurchIds, setEditChurchIds] = useState<string[]>([])
 
   const {
     register,
@@ -60,6 +62,32 @@ export function Managers() {
       toast({ title: msg, variant: 'destructive' })
     },
   })
+
+  const updateChurchesMutation = useMutation({
+    mutationFn: ({ uid, churchIds }: { uid: string; churchIds: string[] }) =>
+      updateManagerChurches(uid, churchIds),
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ['managers'] })
+      toast({ title: 'Igrejas atualizadas!', variant: 'success' } as Parameters<typeof toast>[0])
+      setEditTarget(null)
+      if (user) {
+        addLog({
+          userId: user.uid,
+          userEmail: user.email,
+          userDisplayName: user.displayName,
+          action: 'update_manager',
+          entityType: 'user',
+          entityId: variables.uid,
+        })
+      }
+    },
+    onError: () => toast({ title: 'Erro ao atualizar igrejas do gestor', variant: 'destructive' }),
+  })
+
+  function openEditChurches(manager: { uid: string; displayName: string; churchIds?: string[] }) {
+    setEditTarget({ uid: manager.uid, name: manager.displayName, churchIds: manager.churchIds ?? [] })
+    setEditChurchIds(manager.churchIds ?? [])
+  }
 
   if (isLoading) return <div className="p-8 text-center text-muted-foreground">Carregando...</div>
 
@@ -93,7 +121,12 @@ export function Managers() {
             <div key={m.uid} className="glass-card rounded-xl p-4 flex items-center gap-4">
               <Avatar name={m.displayName} photoURL={m.photoURL} avatarColor={m.avatarColor} />
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-sm">{m.displayName}</p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="font-semibold text-sm">{m.displayName}</p>
+                  {(m.churchIds ?? []).length === 0 && (
+                    <Badge variant="secondary" className="text-xs">Nenhuma igreja</Badge>
+                  )}
+                </div>
                 <p className="text-xs text-muted-foreground">{m.email}</p>
                 <div className="flex flex-wrap gap-1 mt-1">
                   {(m.churchIds ?? []).map((cid) => {
@@ -102,6 +135,9 @@ export function Managers() {
                   })}
                 </div>
               </div>
+              <Button variant="outline" size="sm" className="gap-1.5 shrink-0" onClick={() => openEditChurches(m)}>
+                <Pencil className="w-3.5 h-3.5" />Igrejas
+              </Button>
             </div>
           ))}
         </div>
@@ -155,6 +191,44 @@ export function Managers() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editTarget} onOpenChange={(open) => !open && setEditTarget(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Igrejas — {editTarget?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              O gestor só acessa dízimos e despesas das igrejas selecionadas.
+            </p>
+            <div className="flex flex-col gap-2 border rounded-md p-3 bg-background max-h-48 overflow-y-auto">
+              {churches.map((c) => (
+                <label key={c.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editChurchIds.includes(c.id)}
+                    onChange={(e) => {
+                      if (e.target.checked) setEditChurchIds([...editChurchIds, c.id])
+                      else setEditChurchIds(editChurchIds.filter((id) => id !== c.id))
+                    }}
+                    className="accent-primary"
+                  />
+                  {c.name}
+                </label>
+              ))}
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setEditTarget(null)}>Cancelar</Button>
+              <Button
+                disabled={updateChurchesMutation.isPending}
+                onClick={() => editTarget && updateChurchesMutation.mutate({ uid: editTarget.uid, churchIds: editChurchIds })}
+              >
+                {updateChurchesMutation.isPending ? 'Salvando...' : 'Salvar'}
+              </Button>
+            </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
