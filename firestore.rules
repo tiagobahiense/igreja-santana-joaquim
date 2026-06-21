@@ -12,11 +12,14 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
 
-    function hasChurch(churchId) {
-      let userData = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    function isManager() {
       return isSignedIn() &&
-        'churchIds' in userData &&
-        churchId in userData.churchIds;
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin != true;
+    }
+
+    function canAccessChurch(churchId) {
+      return isAdmin() ||
+        (isManager() && exists(/databases/$(database)/documents/churches/$(churchId)));
     }
 
     function isOwner(uid) {
@@ -42,24 +45,24 @@ service cloud.firestore {
 
     // ─── Tithes (donors) ────────────────────────────────────────────────────────
     match /tithes/{tithesId} {
-      allow read: if isAdmin() || hasChurch(resource.data.churchId);
-      allow create: if !isAdmin() && hasChurch(request.resource.data.churchId);
-      allow update: if !isAdmin() && hasChurch(resource.data.churchId);
-      allow delete: if !isAdmin() && hasChurch(resource.data.churchId);
+      allow read: if isAdmin() || canAccessChurch(resource.data.churchId);
+      allow create: if !isAdmin() && canAccessChurch(request.resource.data.churchId);
+      allow update: if !isAdmin() && canAccessChurch(resource.data.churchId);
+      allow delete: if !isAdmin() && canAccessChurch(resource.data.churchId);
 
       // Donations subcollection
       match /donations/{year} {
-        allow read: if isAdmin() || hasChurch(get(/databases/$(database)/documents/tithes/$(tithesId)).data.churchId);
-        allow write: if !isAdmin() && hasChurch(get(/databases/$(database)/documents/tithes/$(tithesId)).data.churchId);
+        allow read: if isAdmin() || canAccessChurch(get(/databases/$(database)/documents/tithes/$(tithesId)).data.churchId);
+        allow write: if !isAdmin() && canAccessChurch(get(/databases/$(database)/documents/tithes/$(tithesId)).data.churchId);
       }
     }
 
     // ─── Expenses ───────────────────────────────────────────────────────────────
     match /expenses/{expenseId} {
-      allow read: if isAdmin() || hasChurch(resource.data.churchId);
-      allow create: if !isAdmin() && hasChurch(request.resource.data.churchId);
-      allow update: if !isAdmin() && hasChurch(resource.data.churchId);
-      allow delete: if !isAdmin() && hasChurch(resource.data.churchId);
+      allow read: if isAdmin() || canAccessChurch(resource.data.churchId);
+      allow create: if !isAdmin() && canAccessChurch(request.resource.data.churchId);
+      allow update: if !isAdmin() && canAccessChurch(resource.data.churchId);
+      allow delete: if !isAdmin() && canAccessChurch(resource.data.churchId);
     }
 
     // ─── Tasks (personal) ───────────────────────────────────────────────────────

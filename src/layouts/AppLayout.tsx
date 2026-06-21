@@ -25,7 +25,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { useChurches } from '@/hooks/use-churches'
+import { useActiveChurches } from '@/hooks/use-churches'
 import { cn } from '@/lib/utils'
 import { toast } from '@/hooks/use-toast'
 
@@ -47,11 +47,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, setUser } = useAuthStore()
   const { sidebarOpen, toggleSidebar } = useUiStore()
   const navigate = useNavigate()
-  const { data: allChurches = [] } = useChurches()
-
-  const userChurches = user?.isAdmin
-    ? allChurches
-    : allChurches.filter((c) => (user?.churchIds ?? []).includes(c.id))
+  const { data: userChurches = [] } = useActiveChurches()
 
   const activeChurch = userChurches.find((c) => c.id === user?.activeChurchId) ?? userChurches[0]
 

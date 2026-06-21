@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useAuthStore } from '@/stores/auth.store'
 import { useTithes, useCreateTithe, useUpdateTithe, useTransferTithe, useSetDonation, useAllDonationsForYear } from '@/hooks/use-tithes'
-import { useChurches } from '@/hooks/use-churches'
+import { useActiveChurches } from '@/hooks/use-churches'
 import { PageHeader } from '@/components/PageHeader'
 import { AuthorTag } from '@/components/AuthorTag'
 import { EmptyState } from '@/components/EmptyState'
@@ -24,11 +24,12 @@ const CURRENT_YEAR = new Date().getFullYear()
 
 export function Tithes() {
   const { user } = useAuthStore()
-  const activeChurchId = user?.activeChurchId ?? user?.churchIds?.[0] ?? ''
+  const { data: activeChurches = [] } = useActiveChurches()
+  const activeChurchId = user?.activeChurchId ?? activeChurches[0]?.id ?? ''
 
   const { data: tithes = [], isLoading } = useTithes(activeChurchId)
   const { data: allDonations } = useAllDonationsForYear(activeChurchId, CURRENT_YEAR)
-  const { data: churches = [] } = useChurches()
+  const { data: churches = [] } = useActiveChurches()
   const createTithe = useCreateTithe()
   const updateTithe = useUpdateTithe()
   const transferTithe = useTransferTithe()

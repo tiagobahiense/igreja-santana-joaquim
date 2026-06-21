@@ -66,8 +66,11 @@ export async function updateUserProfile(
   uid: string,
   data: Partial<Omit<UserProfile, 'uid' | 'email' | 'isAdmin' | 'createdAt'>>,
 ) {
+  const clean = Object.fromEntries(
+    Object.entries(data).filter(([, value]) => value !== undefined),
+  )
   await updateDoc(doc(db, 'users', uid), {
-    ...data,
+    ...clean,
     updatedAt: serverTimestamp(),
   })
 }

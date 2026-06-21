@@ -4,7 +4,7 @@ import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Timestamp } from 'firebase/firestore'
 import { useAuthStore } from '@/stores/auth.store'
-import { useChurches } from '@/hooks/use-churches'
+import { useActiveChurches } from '@/hooks/use-churches'
 import { useCreateExpense, useUpdateExpense, useDeleteExpense } from '@/hooks/use-expenses'
 import { ChurchFinanceCard } from '@/components/ChurchFinanceCard'
 import { PageHeader } from '@/components/PageHeader'
@@ -30,11 +30,7 @@ import { Label } from '@/components/ui/label'
 
 export function Expenses() {
   const { user } = useAuthStore()
-  const { data: allChurches = [], isLoading: churchesLoading } = useChurches()
-
-  const userChurches = allChurches.filter((c) =>
-    (user?.churchIds ?? []).includes(c.id),
-  )
+  const { data: userChurches = [], isLoading: churchesLoading } = useActiveChurches()
 
   const createExpense = useCreateExpense()
   const updateExpense = useUpdateExpense()
@@ -145,8 +141,8 @@ export function Expenses() {
       {userChurches.length === 0 ? (
         <EmptyState
           icon={Building2}
-          title="Nenhuma igreja vinculada"
-          description="Peça ao administrador para vincular igrejas ao seu perfil."
+          title="Nenhuma igreja cadastrada"
+          description="Peça ao administrador para cadastrar igrejas na paróquia."
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">

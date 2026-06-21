@@ -12,6 +12,14 @@ export function useChurches(includeInactive = false) {
   })
 }
 
+export function useActiveChurches() {
+  const query = useChurches()
+  return {
+    ...query,
+    data: (query.data ?? []).filter((c) => c.isActive),
+  }
+}
+
 function useLogBase() {
   const { user } = useAuthStore()
   return (action: Parameters<typeof addLog>[0]['action'], entityName?: string, entityId?: string, churchId?: string, details?: string) => {

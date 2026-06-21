@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import ReactECharts from 'echarts-for-react'
 import { useAuthStore } from '@/stores/auth.store'
-import { useChurches } from '@/hooks/use-churches'
+import { useChurches, useActiveChurches } from '@/hooks/use-churches'
 import { useTithes, useAllDonationsForYear } from '@/hooks/use-tithes'
 import { useAllSummariesForYear, useSummariesForYear } from '@/hooks/use-summaries'
 import { KpiCard } from '@/components/KpiCard'
@@ -483,12 +483,8 @@ const YEAR_OPTIONS = Array.from({ length: 5 }, (_, i) => CURRENT_YEAR - i)
 
 function TabChurches({
   churches,
-  userChurchIds,
-  isAdmin,
 }: {
   churches: ReturnType<typeof useChurches>['data']
-  userChurchIds: string[]
-  isAdmin: boolean
 }) {
   const [filterYear, setFilterYear] = useState(CURRENT_YEAR)
   const [filterMonth, setFilterMonth] = useState('all')
@@ -496,11 +492,10 @@ function TabChurches({
 
   const { data: summaries = [] } = useAllSummariesForYear(filterYear)
 
-  const availableChurches = useMemo(() => {
-    const active = (churches ?? []).filter((c) => c.isActive)
-    if (isAdmin) return active
-    return active.filter((c) => userChurchIds.includes(c.id))
-  }, [churches, isAdmin, userChurchIds])
+  const availableChurches = useMemo(
+    () => (churches ?? []).filter((c) => c.isActive),
+    [churches],
+  )
 
   const selectedChurches = filterChurch === 'all'
     ? availableChurches
@@ -755,7 +750,8 @@ export function Dashboard() {
   const { user } = useAuthStore()
   const isAdmin = !!user?.isAdmin
   const { data: allChurches = [] } = useChurches()
-  const activeChurchId = user?.activeChurchId ?? user?.churchIds?.[0] ?? ''
+  const { data: activeChurches = [] } = useActiveChurches()
+  const activeChurchId = user?.activeChurchId ?? activeChurches[0]?.id ?? ''
   const { data: tithes = [] } = useTithes(activeChurchId)
   const { data: allSummaries = [] } = useAllSummariesForYear(CURRENT_YEAR)
 
@@ -780,11 +776,7 @@ export function Dashboard() {
             <TabAdminOverview summaries={allSummaries} />
           </TabsContent>
           <TabsContent value="churches">
-            <TabChurches
-              churches={allChurches}
-              userChurchIds={[]}
-              isAdmin
-            />
+            <TabChurches churches={allChurches} />
           </TabsContent>
         </Tabs>
       ) : (
@@ -805,11 +797,7 @@ export function Dashboard() {
             <TabExpenses churchId={activeChurchId} />
           </TabsContent>
           <TabsContent value="churches">
-            <TabChurches
-              churches={allChurches}
-              userChurchIds={user?.churchIds ?? []}
-              isAdmin={false}
-            />
+            <TabChurches churches={allChurches} />
           </TabsContent>
         </Tabs>
       )}
