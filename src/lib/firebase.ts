@@ -2,23 +2,21 @@ import { initializeApp, getApps } from 'firebase/app'
 import { getAuth } from 'firebase/auth'
 import { getFirestore } from 'firebase/firestore'
 
-function requireEnv(name: keyof ImportMetaEnv): string {
+function env(name: keyof ImportMetaEnv): string {
   const value = import.meta.env[name]
-  if (!value || value === 'undefined') {
-    throw new Error(
-      `Firebase não configurado: ${name} ausente. ` +
-      'Defina as variáveis VITE_FIREBASE_* no build (Cloudflare Pages → Settings → Environment variables).',
-    )
-  }
-  return value
+  if (value && value !== 'undefined') return value
+  throw new Error(
+    `Firebase não configurado: ${name} ausente no bundle. ` +
+    'Rode o build com .env.production ou defina VITE_FIREBASE_* no ambiente de build.',
+  )
 }
 
 const firebaseConfig = {
-  apiKey: requireEnv('VITE_FIREBASE_API_KEY'),
-  authDomain: requireEnv('VITE_FIREBASE_AUTH_DOMAIN'),
-  projectId: requireEnv('VITE_FIREBASE_PROJECT_ID'),
-  messagingSenderId: requireEnv('VITE_FIREBASE_MESSAGING_SENDER_ID'),
-  appId: requireEnv('VITE_FIREBASE_APP_ID'),
+  apiKey: env('VITE_FIREBASE_API_KEY'),
+  authDomain: env('VITE_FIREBASE_AUTH_DOMAIN'),
+  projectId: env('VITE_FIREBASE_PROJECT_ID'),
+  messagingSenderId: env('VITE_FIREBASE_MESSAGING_SENDER_ID'),
+  appId: env('VITE_FIREBASE_APP_ID'),
 }
 
 export const app = initializeApp(firebaseConfig)

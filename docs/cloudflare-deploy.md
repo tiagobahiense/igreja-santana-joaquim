@@ -1,21 +1,27 @@
 # Deploy no Cloudflare Pages
 
-## 1. Variáveis de ambiente (obrigatório)
+## 1. Variáveis de ambiente
 
-O build **precisa** das variáveis `VITE_*` no momento do `npm run build`.  
-Sem elas, o app em produção quebra com `auth/invalid-api-key`.
+### Opção A — `.env.production` (recomendado, já no repositório)
 
-No Cloudflare Dashboard → **Workers & Pages** → seu projeto → **Settings** → **Environment variables**, adicione (Production e Preview):
+O projeto inclui `.env.production` com a config **pública** do Firebase Web.  
+O Vite carrega esse arquivo automaticamente em `npm run build`, inclusive no Cloudflare Pages — **não depende** das variáveis do dashboard.
+
+> A API key do Firebase Web não é segredo; a proteção vem das regras do Firestore, Auth e restrição de domínio no Google Cloud Console.
+
+### Opção B — Variáveis no Cloudflare (opcional, sobrescrevem o arquivo)
+
+Se preferir configurar só no Cloudflare, adicione em **Settings → Environment variables** (Production):
 
 | Variável | Exemplo |
 |----------|---------|
-| `VITE_FIREBASE_API_KEY` | valor do Firebase Console |
+| `VITE_FIREBASE_API_KEY` | valor do Firebase Console (`AIzaSy...`) |
 | `VITE_FIREBASE_AUTH_DOMAIN` | `igreja-santana-joaquim.firebaseapp.com` |
 | `VITE_FIREBASE_PROJECT_ID` | `igreja-santana-joaquim` |
 | `VITE_FIREBASE_MESSAGING_SENDER_ID` | `936127307094` |
 | `VITE_FIREBASE_APP_ID` | `1:936127307094:web:...` |
 
-Use os mesmos valores do seu `.env.local` local.
+**Atenção:** no Cloudflare, marque as variáveis para o ambiente **Production** e faça rebuild após salvar. Se ainda assim não entrarem no bundle, use a opção A.
 
 ## 2. Comandos de build
 
