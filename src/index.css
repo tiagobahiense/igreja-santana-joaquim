@@ -1,0 +1,74 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 40 30% 96%;
+    --foreground: 30 15% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 30 15% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 30 15% 15%;
+    --primary: 42 68% 47%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 40 20% 90%;
+    --secondary-foreground: 30 15% 15%;
+    --muted: 40 20% 92%;
+    --muted-foreground: 30 10% 45%;
+    --accent: 0 60% 30%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 40 20% 82%;
+    --input: 40 20% 82%;
+    --ring: 42 68% 47%;
+    --radius: 0.75rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@layer utilities {
+  .glass {
+    @apply bg-white/20 backdrop-blur-md border border-white/30;
+  }
+  .glass-card {
+    @apply bg-white/70 backdrop-blur-sm border border-white/50 shadow-lg;
+  }
+  .gold-gradient {
+    background: linear-gradient(135deg, #c9a227 0%, #e8c84a 50%, #c9a227 100%);
+  }
+  .church-gradient {
+    background: linear-gradient(135deg, #1a3a5c 0%, #2c5f8a 100%);
+  }
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+}
+
+/* Draggable modal */
+[data-radix-dialog-content] {
+  user-select: none;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-border rounded-full;
+}

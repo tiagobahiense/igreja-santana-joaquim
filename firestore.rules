@@ -1,0 +1,80 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─── Helpers ────────────────────────────────────────────────────────────────
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
+    function hasChurch(churchId) {
+      return isSignedIn() &&
+        churchId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.churchIds;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // ─── Users ──────────────────────────────────────────────────────────────────
+    match /users/{uid} {
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow create: if isAdmin();
+      allow update: if isOwner(uid) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ─── Churches ───────────────────────────────────────────────────────────────
+    match /churches/{churchId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ─── Tithes (donors) ────────────────────────────────────────────────────────
+    match /tithes/{tithesId} {
+      allow read: if isAdmin() || hasChurch(resource.data.churchId);
+      allow create: if isAdmin() || hasChurch(request.resource.data.churchId);
+      allow update: if isAdmin() || hasChurch(resource.data.churchId);
+      allow delete: if isAdmin();
+
+      // Donations subcollection
+      match /donations/{year} {
+        allow read: if isAdmin() || hasChurch(get(/databases/$(database)/documents/tithes/$(tithesId)).data.churchId);
+        allow write: if isAdmin() || hasChurch(get(/databases/$(database)/documents/tithes/$(tithesId)).data.churchId);
+      }
+    }
+
+    // ─── Expenses ───────────────────────────────────────────────────────────────
+    match /expenses/{expenseId} {
+      allow read: if isAdmin() || hasChurch(resource.data.churchId);
+      allow create: if isAdmin() || hasChurch(request.resource.data.churchId);
+      allow update: if isAdmin() || hasChurch(resource.data.churchId);
+      allow delete: if isAdmin();
+    }
+
+    // ─── Tasks (personal) ───────────────────────────────────────────────────────
+    match /tasks/{taskId} {
+      allow read: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
+      allow delete: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
+    }
+
+    // ─── Settings ───────────────────────────────────────────────────────────────
+    match /settings/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ─── Summaries ──────────────────────────────────────────────────────────────
+    match /summaries/{summaryId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+  }
+}
