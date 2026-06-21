@@ -50,6 +50,9 @@ export type DonationRecord = Partial<Record<MonthKey, number>> & {
 
 // ─── Expense ──────────────────────────────────────────────────────────────────
 
+export const FINANCIAL_ENTRY_TYPES = ['expense', 'income'] as const
+export type FinancialEntryType = (typeof FINANCIAL_ENTRY_TYPES)[number]
+
 export const EXPENSE_CATEGORIES = [
   'Manutenção',
   'Energia',
@@ -64,6 +67,16 @@ export const EXPENSE_CATEGORIES = [
 
 export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number]
 
+export const INCOME_CATEGORIES = [
+  'Dízimo avulso',
+  'Doação',
+  'Oferta',
+  'Evento',
+  'Outros recebimentos',
+] as const
+
+export type IncomeCategory = (typeof INCOME_CATEGORIES)[number]
+
 export const PAYMENT_METHODS = ['Dinheiro', 'Pix', 'Cartão', 'Transferência', 'Cheque'] as const
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number]
 
@@ -73,7 +86,8 @@ export type RecurrenceRule = (typeof RECURRENCE_RULES)[number]
 export interface Expense {
   id: string
   churchId: string
-  category: ExpenseCategory
+  type?: FinancialEntryType
+  category: ExpenseCategory | IncomeCategory
   subcategory?: string
   supplier?: string
   paymentMethod: PaymentMethod
@@ -134,6 +148,7 @@ export interface MonthlySummary {
   month: number
   totalDonations: number
   totalExpenses: number
+  totalOtherIncome?: number
   activeTithesCount: number
   updatedAt: Timestamp
 }

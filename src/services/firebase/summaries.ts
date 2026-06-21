@@ -61,7 +61,12 @@ export async function updateSummary(churchId: string, year: number, month: numbe
 
   // Get expenses for this month
   const expenses = await getExpensesForPeriod(churchId, year, month)
-  const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0)
+  const totalExpenses = expenses
+    .filter((e) => (e.type ?? 'expense') === 'expense')
+    .reduce((sum, e) => sum + e.amount, 0)
+  const totalOtherIncome = expenses
+    .filter((e) => e.type === 'income')
+    .reduce((sum, e) => sum + e.amount, 0)
 
   const id = summaryId(churchId, year, month)
   await setDoc(
@@ -72,6 +77,7 @@ export async function updateSummary(churchId: string, year: number, month: numbe
       month,
       totalDonations,
       totalExpenses,
+      totalOtherIncome,
       activeTithesCount,
       updatedAt: serverTimestamp(),
     },

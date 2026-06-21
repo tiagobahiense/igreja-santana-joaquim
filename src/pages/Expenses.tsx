@@ -1,12 +1,13 @@
 import { useState } from 'react'
-import { Plus, Receipt as ReceiptIcon, Pencil, Trash2, ExternalLink, RefreshCw } from 'lucide-react'
+import { Building2 } from 'lucide-react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Timestamp } from 'firebase/firestore'
 import { useAuthStore } from '@/stores/auth.store'
-import { useExpenses, useCreateExpense, useUpdateExpense, useDeleteExpense } from '@/hooks/use-expenses'
+import { useChurches } from '@/hooks/use-churches'
+import { useCreateExpense, useUpdateExpense, useDeleteExpense } from '@/hooks/use-expenses'
+import { ChurchFinanceCard } from '@/components/ChurchFinanceCard'
 import { PageHeader } from '@/components/PageHeader'
-import { AuthorTag } from '@/components/AuthorTag'
 import { EmptyState } from '@/components/EmptyState'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -17,22 +18,31 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { expenseSchema, type ExpenseFormData } from '@/schemas'
-import { EXPENSE_CATEGORIES, PAYMENT_METHODS, type Expense } from '@/types'
-import { formatCurrency, formatDate, parseCurrencyToInt } from '@/lib/utils'
+import {
+  EXPENSE_CATEGORIES,
+  INCOME_CATEGORIES,
+  PAYMENT_METHODS,
+  type Expense,
+  type FinancialEntryType,
+} from '@/types'
+import { formatCurrency, parseCurrencyToInt } from '@/lib/utils'
 import { Label } from '@/components/ui/label'
 
 export function Expenses() {
   const { user } = useAuthStore()
-  const activeChurchId = user?.activeChurchId ?? user?.churchIds?.[0] ?? ''
+  const { data: allChurches = [], isLoading: churchesLoading } = useChurches()
 
-  const { data: result, isLoading } = useExpenses({ churchId: activeChurchId })
+  const userChurches = allChurches.filter((c) =>
+    (user?.churchIds ?? []).includes(c.id),
+  )
+
   const createExpense = useCreateExpense()
   const updateExpense = useUpdateExpense()
   const deleteExpense = useDeleteExpense()
 
-  const expenses = result?.expenses ?? []
-
   const [formOpen, setFormOpen] = useState(false)
+  const [formType, setFormType] = useState<FinancialEntryType>('expense')
+  const [formChurchName, setFormChurchName] = useState('')
   const [editing, setEditing] = useState<Expense | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Expense | null>(null)
 
@@ -46,23 +56,40 @@ export function Expenses() {
   } = useForm<ExpenseFormData>({ resolver: zodResolver(expenseSchema) })
 
   const isRecurring = watch('isRecurring')
+  const currentType = watch('type') ?? formType
+  const isIncome = currentType === 'income'
+  const categories = isIncome ? INCOME_CATEGORIES : EXPENSE_CATEGORIES
 
-  function openCreate() {
+  function openCreate(churchId: string, type: FinancialEntryType) {
+    const church = userChurches.find((c) => c.id === churchId)
     setEditing(null)
+    setFormType(type)
+    setFormChurchName(church?.name ?? '')
     reset({
-      churchId: activeChurchId,
-      category: 'Outros',
+      type,
+      churchId,
+      category: type === 'income' ? 'Doação' : 'Outros',
       paymentMethod: 'Dinheiro',
       amount: '',
       date: new Date().toISOString().split('T')[0],
       isRecurring: false,
+      subcategory: '',
+      supplier: '',
+      description: '',
+      receiptReference: '',
+      receiptLink: '',
     })
     setFormOpen(true)
   }
 
   function openEdit(expense: Expense) {
+    const type = expense.type ?? 'expense'
+    const church = userChurches.find((c) => c.id === expense.churchId)
     setEditing(expense)
+    setFormType(type)
+    setFormChurchName(church?.name ?? '')
     reset({
+      type,
       churchId: expense.churchId,
       category: expense.category,
       subcategory: expense.subcategory ?? '',
@@ -82,7 +109,8 @@ export function Expenses() {
   async function onSubmit(data: ExpenseFormData) {
     const payload = {
       churchId: data.churchId,
-      category: data.category,
+      type: data.type,
+      category: data.category as Expense['category'],
       subcategory: data.subcategory || undefined,
       supplier: data.supplier || undefined,
       paymentMethod: data.paymentMethod,
@@ -91,8 +119,8 @@ export function Expenses() {
       description: data.description || undefined,
       receiptReference: data.receiptReference || undefined,
       receiptLink: data.receiptLink || undefined,
-      isRecurring: data.isRecurring,
-      recurrenceRule: data.recurrenceRule,
+      isRecurring: isIncome ? false : data.isRecurring,
+      recurrenceRule: isIncome ? undefined : data.recurrenceRule,
       isActive: true,
     }
     if (editing) {
@@ -103,74 +131,61 @@ export function Expenses() {
     setFormOpen(false)
   }
 
-  if (isLoading) return <div className="p-8 text-center text-muted-foreground">Carregando...</div>
+  if (churchesLoading) {
+    return <div className="p-8 text-center text-muted-foreground">Carregando...</div>
+  }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <PageHeader
-        title="Despesas"
-        description="Controle de gastos da paróquia"
-        action={
-          <Button onClick={openCreate} className="gap-2 gold-gradient text-white">
-            <Plus className="w-4 h-4" />Nova Despesa
-          </Button>
-        }
+        title="Despesas e Entradas"
+        description="Controle financeiro unitário por igreja — o Dashboard traz os agregados e comparativos"
       />
 
-      {expenses.length === 0 ? (
-        <EmptyState icon={ReceiptIcon} title="Nenhuma despesa registrada" action={<Button onClick={openCreate}>Registrar despesa</Button>} />
+      {userChurches.length === 0 ? (
+        <EmptyState
+          icon={Building2}
+          title="Nenhuma igreja vinculada"
+          description="Peça ao administrador para vincular igrejas ao seu perfil."
+        />
       ) : (
-        <div className="grid gap-3">
-          {expenses.map((expense) => (
-            <div key={expense.id} className="glass-card rounded-xl p-4 flex items-start gap-4">
-              <div className="flex-1 min-w-0">
-                <div className="flex flex-wrap items-center gap-2 mb-1">
-                  <span className="font-semibold text-sm">{expense.category}</span>
-                  {expense.subcategory && <Badge variant="secondary" className="text-xs">{expense.subcategory}</Badge>}
-                  {expense.isRecurring && (
-                    <Badge variant="outline" className="text-xs gap-1">
-                      <RefreshCw className="w-2.5 h-2.5" />{expense.recurrenceRule === 'monthly' ? 'Mensal' : 'Anual'}
-                    </Badge>
-                  )}
-                </div>
-                {expense.description && <p className="text-xs text-muted-foreground truncate">{expense.description}</p>}
-                <div className="flex flex-wrap items-center gap-3 mt-2">
-                  <span className="text-lg font-bold text-primary">{formatCurrency(expense.amount)}</span>
-                  <span className="text-xs text-muted-foreground">{formatDate(expense.date.toDate())}</span>
-                  <Badge variant="outline" className="text-xs">{expense.paymentMethod}</Badge>
-                  <AuthorTag userId={expense.createdBy} />
-                  {expense.receiptLink && (
-                    <a href={expense.receiptLink} target="_blank" rel="noreferrer" className="text-xs text-blue-600 flex items-center gap-0.5 hover:underline">
-                      <ExternalLink className="w-3 h-3" />Comprovante
-                    </a>
-                  )}
-                  {expense.receiptReference && !expense.receiptLink && (
-                    <span className="text-xs text-muted-foreground">Ref: {expense.receiptReference}</span>
-                  )}
-                </div>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <Button size="icon" variant="ghost" onClick={() => openEdit(expense)}><Pencil className="w-4 h-4" /></Button>
-                <Button size="icon" variant="ghost" className="text-destructive" onClick={() => setDeleteTarget(expense)}><Trash2 className="w-4 h-4" /></Button>
-              </div>
-            </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {userChurches.map((church) => (
+            <ChurchFinanceCard
+              key={church.id}
+              church={church}
+              onAdd={openCreate}
+              onEdit={openEdit}
+              onDelete={setDeleteTarget}
+            />
           ))}
         </div>
       )}
 
-      {/* Form dialog */}
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>{editing ? 'Editar Despesa' : 'Nova Despesa'}</DialogTitle>
+            <DialogTitle className="flex items-center gap-2 flex-wrap">
+              {editing
+                ? (isIncome ? 'Editar Entrada' : 'Editar Despesa')
+                : (isIncome ? 'Nova Entrada' : 'Nova Despesa')}
+              {formChurchName && (
+                <Badge variant="outline" className="font-normal text-xs">{formChurchName}</Badge>
+              )}
+            </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
+            <input type="hidden" {...register('churchId')} />
+            <input type="hidden" {...register('type')} />
+
             <div className="grid grid-cols-2 gap-3">
               <FormField label="Categoria" error={errors.category?.message} required>
                 <Controller control={control} name="category" render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value} key={currentType}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>{EXPENSE_CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+                    <SelectContent>
+                      {categories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    </SelectContent>
                   </Select>
                 )} />
               </FormField>
@@ -195,8 +210,8 @@ export function Expenses() {
                   </Select>
                 )} />
               </FormField>
-              <FormField label="Fornecedor" error={errors.supplier?.message}>
-                <Input {...register('supplier')} placeholder="Opcional" />
+              <FormField label={isIncome ? 'Origem' : 'Fornecedor'} error={errors.supplier?.message}>
+                <Input {...register('supplier')} placeholder={isIncome ? 'Quem doou / pagou' : 'Opcional'} />
               </FormField>
             </div>
             <FormField label="Descrição" error={errors.description?.message}>
@@ -208,26 +223,32 @@ export function Expenses() {
             <FormField label="Link do comprovante" error={errors.receiptLink?.message}>
               <Input {...register('receiptLink')} placeholder="https://..." />
             </FormField>
-            <div className="flex items-center gap-3">
-              <Controller control={control} name="isRecurring" render={({ field }) => (
-                <Switch checked={field.value} onCheckedChange={field.onChange} id="recurring" />
-              )} />
-              <Label htmlFor="recurring">Despesa recorrente</Label>
-              {isRecurring && (
-                <Controller control={control} name="recurrenceRule" render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value ?? ''}>
-                    <SelectTrigger className="w-32"><SelectValue placeholder="Período" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="monthly">Mensal</SelectItem>
-                      <SelectItem value="yearly">Anual</SelectItem>
-                    </SelectContent>
-                  </Select>
+            {!isIncome && (
+              <div className="flex items-center gap-3">
+                <Controller control={control} name="isRecurring" render={({ field }) => (
+                  <Switch checked={field.value} onCheckedChange={field.onChange} id="recurring" />
                 )} />
-              )}
-            </div>
+                <Label htmlFor="recurring">Despesa recorrente</Label>
+                {isRecurring && (
+                  <Controller control={control} name="recurrenceRule" render={({ field }) => (
+                    <Select onValueChange={field.onChange} value={field.value ?? ''}>
+                      <SelectTrigger className="w-32"><SelectValue placeholder="Período" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="monthly">Mensal</SelectItem>
+                        <SelectItem value="yearly">Anual</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )} />
+                )}
+              </div>
+            )}
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setFormOpen(false)}>Cancelar</Button>
-              <Button type="submit" disabled={createExpense.isPending || updateExpense.isPending}>
+              <Button
+                type="submit"
+                disabled={createExpense.isPending || updateExpense.isPending}
+                className={isIncome ? 'bg-green-600 hover:bg-green-700 text-white' : 'gold-gradient text-white'}
+              >
                 {editing ? 'Salvar' : 'Registrar'}
               </Button>
             </DialogFooter>
@@ -235,16 +256,24 @@ export function Expenses() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete confirm */}
       <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remover despesa?</AlertDialogTitle>
-            <AlertDialogDescription>A despesa de <strong>{formatCurrency(deleteTarget?.amount ?? 0)}</strong> será removida.</AlertDialogDescription>
+            <AlertDialogTitle>
+              Remover {(deleteTarget?.type ?? 'expense') === 'income' ? 'entrada' : 'despesa'}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              O lançamento de <strong>{formatCurrency(deleteTarget?.amount ?? 0)}</strong> será removido.
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={() => { deleteExpense.mutate(deleteTarget!.id); setDeleteTarget(null) }}>Remover</AlertDialogAction>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              onClick={() => { deleteExpense.mutate(deleteTarget!.id); setDeleteTarget(null) }}
+            >
+              Remover
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

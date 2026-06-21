@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { EXPENSE_CATEGORIES, PAYMENT_METHODS, RECURRENCE_RULES } from '@/types'
+import { EXPENSE_CATEGORIES, INCOME_CATEGORIES, PAYMENT_METHODS, RECURRENCE_RULES, FINANCIAL_ENTRY_TYPES } from '@/types'
 
 export const loginSchema = z.object({
   email: z.string().email('E-mail inválido'),
@@ -35,7 +35,8 @@ export const titheDonorSchema = z.object({
 })
 
 export const expenseSchema = z.object({
-  category: z.enum(EXPENSE_CATEGORIES),
+  type: z.enum(FINANCIAL_ENTRY_TYPES).default('expense'),
+  category: z.string().min(1, 'Selecione uma categoria'),
   subcategory: z.string().optional(),
   supplier: z.string().optional(),
   paymentMethod: z.enum(PAYMENT_METHODS),
@@ -47,6 +48,12 @@ export const expenseSchema = z.object({
   isRecurring: z.boolean().default(false),
   recurrenceRule: z.enum(RECURRENCE_RULES).optional(),
   churchId: z.string().min(1, 'Selecione uma igreja'),
+}).superRefine((data, ctx) => {
+  const validCategories: readonly string[] =
+    data.type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES
+  if (!validCategories.includes(data.category)) {
+    ctx.addIssue({ code: 'custom', message: 'Categoria inválida', path: ['category'] })
+  }
 })
 
 export const taskSchema = z.object({

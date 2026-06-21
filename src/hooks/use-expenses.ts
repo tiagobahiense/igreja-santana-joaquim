@@ -15,12 +15,16 @@ export function useCreateExpense() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: createExpense,
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: ['expenses'] })
       qc.invalidateQueries({ queryKey: ['summaries'] })
-      toast({ title: 'Despesa registrada!', variant: 'success' } as Parameters<typeof toast>[0])
+      const isIncome = variables.type === 'income'
+      toast({ title: isIncome ? 'Entrada registrada!' : 'Despesa registrada!', variant: 'success' } as Parameters<typeof toast>[0])
     },
-    onError: () => toast({ title: 'Erro ao registrar despesa', variant: 'destructive' }),
+    onError: (_err, variables) => {
+      const isIncome = variables.type === 'income'
+      toast({ title: isIncome ? 'Erro ao registrar entrada' : 'Erro ao registrar despesa', variant: 'destructive' })
+    },
   })
 }
 
