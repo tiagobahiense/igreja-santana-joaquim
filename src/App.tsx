@@ -9,7 +9,7 @@ import { Churches } from '@/pages/Churches'
 import { Managers } from '@/pages/Managers'
 import { Tithes } from '@/pages/Tithes'
 import { Expenses } from '@/pages/Expenses'
-import { Tasks } from '@/pages/Tasks'
+import { Agenda } from '@/pages/Agenda'
 import { Settings } from '@/pages/Settings'
 import { Profile } from '@/pages/Profile'
 import { AuditLogs } from '@/pages/AuditLogs'
@@ -46,6 +46,12 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 function AdminGuard({ children }: { children: React.ReactNode }) {
   const { user } = useAuthStore()
   if (!user?.isAdmin) return <Navigate to="/dashboard" replace />
+  return <>{children}</>
+}
+
+function ManagerGuard({ children }: { children: React.ReactNode }) {
+  const { user } = useAuthStore()
+  if (user?.isAdmin) return <Navigate to="/dashboard" replace />
   return <>{children}</>
 }
 
@@ -113,9 +119,11 @@ function AppRoutes() {
         path="/dizimos"
         element={
           <AuthGuard>
-            <AppLayout>
-              <Tithes />
-            </AppLayout>
+            <ManagerGuard>
+              <AppLayout>
+                <Tithes />
+              </AppLayout>
+            </ManagerGuard>
           </AuthGuard>
         }
       />
@@ -124,23 +132,29 @@ function AppRoutes() {
         path="/despesas"
         element={
           <AuthGuard>
-            <AppLayout>
-              <Expenses />
-            </AppLayout>
+            <ManagerGuard>
+              <AppLayout>
+                <Expenses />
+              </AppLayout>
+            </ManagerGuard>
           </AuthGuard>
         }
       />
 
       <Route
-        path="/tarefas"
+        path="/agenda"
         element={
           <AuthGuard>
-            <AppLayout>
-              <Tasks />
-            </AppLayout>
+            <ManagerGuard>
+              <AppLayout>
+                <Agenda />
+              </AppLayout>
+            </ManagerGuard>
           </AuthGuard>
         }
       />
+
+      <Route path="/tarefas" element={<Navigate to="/agenda" replace />} />
 
       <Route
         path="/configuracoes"
@@ -154,7 +168,6 @@ function AppRoutes() {
           </AuthGuard>
         }
       />
-
       <Route
         path="/perfil"
         element={

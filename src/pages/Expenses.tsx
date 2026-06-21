@@ -6,6 +6,7 @@ import { Timestamp } from 'firebase/firestore'
 import { useAuthStore } from '@/stores/auth.store'
 import { useExpenses, useCreateExpense, useUpdateExpense, useDeleteExpense } from '@/hooks/use-expenses'
 import { PageHeader } from '@/components/PageHeader'
+import { AuthorTag } from '@/components/AuthorTag'
 import { EmptyState } from '@/components/EmptyState'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -97,7 +98,7 @@ export function Expenses() {
     if (editing) {
       await updateExpense.mutateAsync({ id: editing.id, data: payload })
     } else {
-      await createExpense.mutateAsync(payload as Parameters<typeof createExpense.mutateAsync>[0])
+      await createExpense.mutateAsync({ ...payload, createdBy: user!.uid } as Parameters<typeof createExpense.mutateAsync>[0])
     }
     setFormOpen(false)
   }
@@ -137,6 +138,7 @@ export function Expenses() {
                   <span className="text-lg font-bold text-primary">{formatCurrency(expense.amount)}</span>
                   <span className="text-xs text-muted-foreground">{formatDate(expense.date.toDate())}</span>
                   <Badge variant="outline" className="text-xs">{expense.paymentMethod}</Badge>
+                  <AuthorTag userId={expense.createdBy} />
                   {expense.receiptLink && (
                     <a href={expense.receiptLink} target="_blank" rel="noreferrer" className="text-xs text-blue-600 flex items-center gap-0.5 hover:underline">
                       <ExternalLink className="w-3 h-3" />Comprovante

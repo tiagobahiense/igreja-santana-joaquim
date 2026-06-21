@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Eye, EyeOff, LogIn } from 'lucide-react'
+import { Eye, EyeOff, LogIn, Church } from 'lucide-react'
 import { motion } from 'motion/react'
 import { signIn, getUserProfile, signOut } from '@/services/firebase/auth'
 import { useAuthStore } from '@/stores/auth.store'
@@ -66,17 +66,20 @@ export function Login() {
         <div className="glass rounded-3xl p-8 shadow-2xl border border-white/20">
           {/* Header */}
           <div className="text-center mb-8">
-            <span className="text-5xl mb-3 block">⛪</span>
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-white/10 mb-3">
+              <Church className="w-8 h-8 text-yellow-300" />
+            </div>
             <h1 className="text-2xl font-bold text-white">Sant'Ana e São Joaquim</h1>
             <p className="text-white/60 text-sm mt-1">Sistema de Gestão Paroquial</p>
           </div>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" autoComplete="on">
             <FormField label="E-mail" error={errors.email?.message} required>
               <Input
+                id="email"
                 type="email"
                 placeholder="seu@email.com"
-                autoComplete="email"
+                autoComplete="username"
                 className="bg-white/90"
                 {...register('email')}
               />
@@ -85,6 +88,7 @@ export function Login() {
             <FormField label="Senha" error={errors.password?.message} required>
               <div className="relative">
                 <Input
+                  id="password"
                   type={showPassword ? 'text' : 'password'}
                   placeholder="••••••••"
                   autoComplete="current-password"

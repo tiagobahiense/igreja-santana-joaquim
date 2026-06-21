@@ -1,17 +1,16 @@
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink, useNavigate, Link } from 'react-router-dom'
 import {
   LayoutDashboard,
   Church,
   Users,
   HandCoins,
   Receipt,
-  CheckSquare,
-  Settings,
   LogOut,
   Menu,
   X,
   ChevronDown,
   Shield,
+  CalendarDays,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth.store'
 import { useUiStore } from '@/stores/ui.store'
@@ -30,15 +29,18 @@ import { useChurches } from '@/hooks/use-churches'
 import { cn } from '@/lib/utils'
 import { toast } from '@/hooks/use-toast'
 
-const navItems = [
+const adminNavItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/igrejas', icon: Church, label: 'Igrejas', adminOnly: true },
-  { to: '/gestores', icon: Users, label: 'Gestores', adminOnly: true },
+  { to: '/igrejas', icon: Church, label: 'Igrejas' },
+  { to: '/gestores', icon: Users, label: 'Gestores' },
+  { to: '/logs', icon: Shield, label: 'Auditoria' },
+]
+
+const managerNavItems = [
+  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/dizimos', icon: HandCoins, label: 'Dízimos' },
   { to: '/despesas', icon: Receipt, label: 'Despesas' },
-  { to: '/tarefas', icon: CheckSquare, label: 'Tarefas' },
-  { to: '/configuracoes', icon: Settings, label: 'Configurações', adminOnly: true },
-  { to: '/logs', icon: Shield, label: 'Audit Logs', adminOnly: true },
+  { to: '/agenda', icon: CalendarDays, label: 'Agenda' },
 ]
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
@@ -66,7 +68,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     toast({ title: 'Igreja alterada', variant: 'success' } as Parameters<typeof toast>[0])
   }
 
-  const visibleNav = navItems.filter((item) => !item.adminOnly || user?.isAdmin)
+  const visibleNav = user?.isAdmin ? adminNavItems : managerNavItems
 
   return (
     <div className="min-h-screen flex bg-church-cream">
@@ -81,7 +83,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         {/* Logo area */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
           <div className="flex items-center gap-2">
-            <span className="text-2xl leading-none select-none">⛪</span>
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/10">
+              <Church className="w-5 h-5 text-yellow-300" />
+            </div>
             <div className="leading-tight">
               <p className="text-[10px] text-white/60 font-medium uppercase tracking-wider">Quase-Paróquia</p>
               <p className="text-sm font-bold text-yellow-300">
@@ -218,6 +222,16 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         <main className="flex-1 p-4 md:p-6 lg:p-8 overflow-auto">
           {children}
         </main>
+
+        {!user?.isAdmin && (
+          <Link
+            to="/agenda"
+            className="fixed bottom-6 right-6 z-30 flex h-14 w-14 items-center justify-center rounded-full gold-gradient text-white shadow-lg hover:scale-105 transition-transform"
+            title="Agenda da matriz"
+          >
+            <CalendarDays className="w-6 h-6" />
+          </Link>
+        )}
       </div>
     </div>
   )

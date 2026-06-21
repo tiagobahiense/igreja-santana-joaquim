@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/auth.store'
 import { useTithes, useCreateTithe, useUpdateTithe, useTransferTithe, useSetDonation, useAllDonationsForYear } from '@/hooks/use-tithes'
 import { useChurches } from '@/hooks/use-churches'
 import { PageHeader } from '@/components/PageHeader'
+import { AuthorTag } from '@/components/AuthorTag'
 import { EmptyState } from '@/components/EmptyState'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -78,7 +79,7 @@ export function Tithes() {
     if (editing) {
       await updateTithe.mutateAsync({ id: editing.id, data: payload })
     } else {
-      await createTithe.mutateAsync(payload)
+      await createTithe.mutateAsync({ ...payload, createdBy: user!.uid })
     }
     setFormOpen(false)
   }
@@ -161,11 +162,14 @@ export function Tithes() {
                   <tr key={tithe.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
                     <td className="px-4 py-2 sticky left-0 bg-white/80 backdrop-blur-sm">
                       <p className="font-medium truncate max-w-[160px]">{tithe.fullName}</p>
-                      {tithe.birthDate && (
-                        <p className="text-xs text-muted-foreground">
-                          {calculateAge(tithe.birthDate.toDate())} anos
-                        </p>
-                      )}
+                      <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                        {tithe.birthDate && (
+                          <span className="text-xs text-muted-foreground">
+                            {calculateAge(tithe.birthDate.toDate())} anos
+                          </span>
+                        )}
+                        <AuthorTag userId={tithe.createdBy} />
+                      </div>
                     </td>
                     {MONTHS.map((m) => {
                       const val = donations?.[m.key]

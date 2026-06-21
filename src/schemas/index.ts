@@ -61,6 +61,13 @@ export const settingsSchema = z.object({
   missingDonationMonths: z.number().min(1).max(12),
 })
 
+export const eventSchema = z.object({
+  title: z.string().min(1, 'Título obrigatório'),
+  description: z.string().optional(),
+  date: z.string().min(1, 'Data obrigatória'),
+  time: z.string().min(1, 'Horário obrigatório'),
+})
+
 export type LoginFormData = z.infer<typeof loginSchema>
 export type UserProfileFormData = z.infer<typeof userProfileSchema>
 export type ChurchFormData = z.infer<typeof churchSchema>
@@ -69,3 +76,4 @@ export type TitheDonorFormData = z.infer<typeof titheDonorSchema>
 export type ExpenseFormData = z.infer<typeof expenseSchema>
 export type TaskFormData = z.infer<typeof taskSchema>
 export type SettingsFormData = z.infer<typeof settingsSchema>
+export type EventFormData = z.infer<typeof eventSchema>

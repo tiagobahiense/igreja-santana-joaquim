@@ -39,6 +39,7 @@ export interface Tithe {
   birthDate?: Timestamp
   isActive: boolean
   transferredFrom?: string
+  createdBy?: string
   createdAt: Timestamp
   updatedAt: Timestamp
 }
@@ -84,6 +85,19 @@ export interface Expense {
   isRecurring: boolean
   recurrenceRule?: RecurrenceRule
   isActive: boolean
+  createdBy?: string
+  createdAt: Timestamp
+  updatedAt: Timestamp
+}
+
+// ─── Parish Event (agenda da matriz) ───────────────────────────────────────────
+
+export interface ParishEvent {
+  id: string
+  title: string
+  description?: string
+  startAt: Timestamp
+  createdBy: string
   createdAt: Timestamp
   updatedAt: Timestamp
 }

@@ -25,7 +25,7 @@ service cloud.firestore {
 
     // ─── Users ──────────────────────────────────────────────────────────────────
     match /users/{uid} {
-      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow read: if isSignedIn();
       allow create: if isAdmin();
       allow update: if isAdmin() || (
         isOwner(uid) &&
@@ -43,23 +43,23 @@ service cloud.firestore {
     // ─── Tithes (donors) ────────────────────────────────────────────────────────
     match /tithes/{tithesId} {
       allow read: if isAdmin() || hasChurch(resource.data.churchId);
-      allow create: if isAdmin() || hasChurch(request.resource.data.churchId);
-      allow update: if isAdmin() || hasChurch(resource.data.churchId);
-      allow delete: if isAdmin();
+      allow create: if !isAdmin() && hasChurch(request.resource.data.churchId);
+      allow update: if !isAdmin() && hasChurch(resource.data.churchId);
+      allow delete: if !isAdmin() && hasChurch(resource.data.churchId);
 
       // Donations subcollection
       match /donations/{year} {
         allow read: if isAdmin() || hasChurch(get(/databases/$(database)/documents/tithes/$(tithesId)).data.churchId);
-        allow write: if isAdmin() || hasChurch(get(/databases/$(database)/documents/tithes/$(tithesId)).data.churchId);
+        allow write: if !isAdmin() && hasChurch(get(/databases/$(database)/documents/tithes/$(tithesId)).data.churchId);
       }
     }
 
     // ─── Expenses ───────────────────────────────────────────────────────────────
     match /expenses/{expenseId} {
       allow read: if isAdmin() || hasChurch(resource.data.churchId);
-      allow create: if isAdmin() || hasChurch(request.resource.data.churchId);
-      allow update: if isAdmin() || hasChurch(resource.data.churchId);
-      allow delete: if isAdmin();
+      allow create: if !isAdmin() && hasChurch(request.resource.data.churchId);
+      allow update: if !isAdmin() && hasChurch(resource.data.churchId);
+      allow delete: if !isAdmin() && hasChurch(resource.data.churchId);
     }
 
     // ─── Tasks (personal) ───────────────────────────────────────────────────────
@@ -87,6 +87,12 @@ service cloud.firestore {
       allow read: if isAdmin();
       allow create: if isSignedIn();
       allow update, delete: if false;
+    }
+
+    // ─── Parish events (agenda da matriz) ───────────────────────────────────────
+    match /events/{eventId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSignedIn() && !isAdmin();
     }
   }
 }

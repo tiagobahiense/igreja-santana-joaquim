@@ -1,15 +1,14 @@
 import { useMemo, useState } from 'react'
 import {
   DollarSign, Users, TrendingDown, TrendingUp,
-  CheckSquare, ChevronDown, ChevronUp, HandCoins,
-  BarChart3, PieChart, Building2, Filter,
+  ChevronDown, ChevronUp, HandCoins,
+  BarChart3, PieChart, Building2, Filter, Cake,
 } from 'lucide-react'
 import ReactECharts from 'echarts-for-react'
 import { useAuthStore } from '@/stores/auth.store'
 import { useChurches } from '@/hooks/use-churches'
 import { useTithes, useAllDonationsForYear } from '@/hooks/use-tithes'
 import { useAllSummariesForYear, useSummariesForYear } from '@/hooks/use-summaries'
-import { useDailyTasks } from '@/hooks/use-tasks'
 import { KpiCard } from '@/components/KpiCard'
 import { PageHeader } from '@/components/PageHeader'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -20,19 +19,23 @@ import { Label } from '@/components/ui/label'
 import { formatCurrency, formatDate, isBirthdayInNextDays, MONTHS, getDonationTotal, getDonationMonthsCount, getLastDonationMonth, getCurrentMonthDonation, getMonthLabel } from '@/lib/utils'
 import { useUiStore } from '@/stores/ui.store'
 import { useExpenses } from '@/hooks/use-expenses'
+import { UpcomingEventsPanel } from '@/components/UpcomingEventsPanel'
 
 const CURRENT_YEAR = new Date().getFullYear()
 const CURRENT_MONTH = new Date().getMonth() + 1
 
 const CHART_COLORS = ['#c9a227', '#8b1a1a', '#1a3a5c', '#2e7d32', '#6a1b9a', '#00695c', '#bf360c', '#0277bd']
 
-function AlertCard({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
+function AlertCard({ id, title, children, icon: Icon }: { id: string; title: string; children: React.ReactNode; icon?: React.ComponentType<{ className?: string }> }) {
   const { isAlertMinimized, minimizeAlert, restoreAlert } = useUiStore()
   const minimized = isAlertMinimized(id)
   return (
     <div className="glass-card rounded-xl overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3 cursor-pointer" onClick={() => minimized ? restoreAlert(id) : minimizeAlert(id)}>
-        <span className="font-semibold text-sm">{title}</span>
+        <span className="font-semibold text-sm flex items-center gap-2">
+          {Icon && <Icon className="w-4 h-4 text-primary" />}
+          {title}
+        </span>
         {minimized ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
       </div>
       {!minimized && <div className="px-4 pb-4">{children}</div>}
@@ -53,12 +56,11 @@ const tooltip = {
   },
 }
 
-// ─── Tab: Visão Geral ────────────────────────────────────────────────────────
-function TabOverview({ churchId, summaries, tithes, dailyTasks }: {
+// ─── Tab: Visão Geral (gestor) ───────────────────────────────────────────────
+function TabOverview({ churchId, summaries, tithes }: {
   churchId: string
   summaries: ReturnType<typeof useAllSummariesForYear>['data']
   tithes: ReturnType<typeof useTithes>['data']
-  dailyTasks: ReturnType<typeof useDailyTasks>['data']
 }) {
   const churchSummaries = (summaries ?? []).filter(s => s.churchId === churchId)
   const totalDonations = churchSummaries.reduce((a, s) => a + s.totalDonations, 0)
@@ -68,8 +70,6 @@ function TabOverview({ churchId, summaries, tithes, dailyTasks }: {
   const upcomingBirthdays = useMemo(() =>
     (tithes ?? []).filter(t => t.birthDate && isBirthdayInNextDays(t.birthDate.toDate())),
     [tithes])
-
-  const overdueTasks = (dailyTasks ?? []).filter(t => t.dueDate && t.dueDate.toDate() < new Date() && !t.completed)
 
   const chartData = MONTHS.map((m, idx) => {
     const s = churchSummaries.find(s => s.month === idx + 1)
@@ -106,8 +106,8 @@ function TabOverview({ churchId, summaries, tithes, dailyTasks }: {
         <KpiCard title="Dizimistas Ativos" value={String((tithes ?? []).length)} icon={Users} color="blue" />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <AlertCard id="birthdays" title={`🎂 Aniversários (${upcomingBirthdays.length})`}>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <AlertCard id="birthdays" title={`Aniversários (${upcomingBirthdays.length})`} icon={Cake}>
           {upcomingBirthdays.length === 0
             ? <p className="text-sm text-muted-foreground">Nenhum aniversário nos próximos 7 dias.</p>
             : <ul className="space-y-1">{upcomingBirthdays.map(t => (
@@ -116,24 +116,7 @@ function TabOverview({ churchId, summaries, tithes, dailyTasks }: {
                 <span className="text-muted-foreground">{formatDate(t.birthDate?.toDate())}</span>
               </li>))}</ul>}
         </AlertCard>
-        <AlertCard id="overdue-tasks" title={`⚠️ Tarefas Atrasadas (${overdueTasks.length})`}>
-          {overdueTasks.length === 0
-            ? <p className="text-sm text-muted-foreground">Nenhuma tarefa atrasada.</p>
-            : <ul className="space-y-1">{overdueTasks.slice(0, 5).map(t => (
-              <li key={t.id} className="text-sm flex justify-between">
-                <span className="truncate">{t.title}</span>
-                <Badge variant="warning">{formatDate(t.dueDate?.toDate())}</Badge>
-              </li>))}</ul>}
-        </AlertCard>
-        <AlertCard id="all-tasks" title={`✅ Painel do Dia (${(dailyTasks ?? []).length})`}>
-          {(dailyTasks ?? []).length === 0
-            ? <p className="text-sm text-muted-foreground">Sem tarefas no painel.</p>
-            : <ul className="space-y-1">{(dailyTasks ?? []).slice(0, 5).map(t => (
-              <li key={t.id} className="text-sm flex items-center gap-2">
-                <CheckSquare className="w-3 h-3 text-primary shrink-0" />
-                <span className="truncate">{t.title}</span>
-              </li>))}</ul>}
-        </AlertCard>
+        <UpcomingEventsPanel limit={4} />
       </div>
 
       <Card className="glass-card">
@@ -142,6 +125,59 @@ function TabOverview({ churchId, summaries, tithes, dailyTasks }: {
           <ReactECharts option={option} style={{ height: 300 }} opts={{ renderer: 'svg' }} />
         </CardContent>
       </Card>
+    </div>
+  )
+}
+
+// ─── Tab: Visão Geral (admin — somente leitura) ──────────────────────────────
+function TabAdminOverview({ summaries }: {
+  summaries: ReturnType<typeof useAllSummariesForYear>['data']
+}) {
+  const all = summaries ?? []
+  const totalDonations = all.reduce((a, s) => a + s.totalDonations, 0)
+  const totalExpenses = all.reduce((a, s) => a + s.totalExpenses, 0)
+  const balance = totalDonations - totalExpenses
+
+  const chartData = MONTHS.map((m, idx) => {
+    const monthSums = all.filter((s) => s.month === idx + 1)
+    return {
+      month: m.label,
+      donations: monthSums.reduce((a, s) => a + s.totalDonations, 0) / 100,
+      expenses: monthSums.reduce((a, s) => a + s.totalExpenses, 0) / 100,
+    }
+  })
+
+  const option = {
+    tooltip,
+    legend: { data: ['Dízimos', 'Despesas'], bottom: 0, textStyle: { fontSize: 12 } },
+    color: CHART_COLORS,
+    xAxis: { type: 'category', data: chartData.map(d => d.month) },
+    yAxis: { type: 'value', axisLabel: { formatter: (v: number) => `R$${(v / 1000).toFixed(0)}k` } },
+    series: [
+      { name: 'Dízimos', type: 'bar', data: chartData.map(d => d.donations), barMaxWidth: 28, itemStyle: { borderRadius: [4, 4, 0, 0] } },
+      { name: 'Despesas', type: 'bar', data: chartData.map(d => d.expenses), barMaxWidth: 28, itemStyle: { borderRadius: [4, 4, 0, 0] } },
+    ],
+    grid: { left: '3%', right: '4%', bottom: '15%', containLabel: true },
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+        <KpiCard title="Total Dízimos" value={formatCurrency(totalDonations)} icon={DollarSign} color="gold" />
+        <KpiCard title="Total Despesas" value={formatCurrency(totalExpenses)} icon={TrendingDown} color="red" />
+        <KpiCard title="Saldo" value={formatCurrency(Math.abs(balance))} subtitle={balance >= 0 ? 'positivo' : 'negativo'} icon={balance >= 0 ? TrendingUp : TrendingDown} color={balance >= 0 ? 'green' : 'red'} />
+        <KpiCard title="Igrejas" value={String(new Set(all.map((s) => s.churchId)).size)} icon={Building2} color="blue" />
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <Card className="glass-card">
+          <CardHeader><CardTitle>Consolidado — {CURRENT_YEAR}</CardTitle></CardHeader>
+          <CardContent>
+            <ReactECharts option={option} style={{ height: 300 }} opts={{ renderer: 'svg' }} />
+          </CardContent>
+        </Card>
+        <UpcomingEventsPanel limit={6} />
+      </div>
     </div>
   )
 }
@@ -717,46 +753,66 @@ function TabChurches({
 // ─── Main component ───────────────────────────────────────────────────────────
 export function Dashboard() {
   const { user } = useAuthStore()
+  const isAdmin = !!user?.isAdmin
   const { data: allChurches = [] } = useChurches()
   const activeChurchId = user?.activeChurchId ?? user?.churchIds?.[0] ?? ''
   const { data: tithes = [] } = useTithes(activeChurchId)
   const { data: allSummaries = [] } = useAllSummariesForYear(CURRENT_YEAR)
-  const { data: dailyTasks = [] } = useDailyTasks(user?.uid ?? '')
 
-  const activeChurchName = allChurches.find(c => c.id === activeChurchId)?.name ?? 'Geral'
+  const activeChurchName = isAdmin
+    ? 'Todas as igrejas'
+    : allChurches.find(c => c.id === activeChurchId)?.name ?? 'Geral'
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Dashboard" description={`Ano ${CURRENT_YEAR} — ${activeChurchName}`} />
+      <PageHeader
+        title="Dashboard"
+        description={`Ano ${CURRENT_YEAR} — ${activeChurchName}`}
+      />
 
-      <Tabs defaultValue="overview">
-        <TabsList className="flex-wrap h-auto gap-1 mb-2">
-          <TabsTrigger value="overview" className="gap-1.5"><BarChart3 className="w-3.5 h-3.5" />Visão Geral</TabsTrigger>
-          <TabsTrigger value="tithes" className="gap-1.5"><HandCoins className="w-3.5 h-3.5" />Dízimos</TabsTrigger>
-          <TabsTrigger value="expenses" className="gap-1.5"><TrendingDown className="w-3.5 h-3.5" />Despesas</TabsTrigger>
-          <TabsTrigger value="churches" className="gap-1.5"><Building2 className="w-3.5 h-3.5" />Igrejas</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="overview">
-          <TabOverview churchId={activeChurchId} summaries={allSummaries} tithes={tithes} dailyTasks={dailyTasks} />
-        </TabsContent>
-
-        <TabsContent value="tithes">
-          <TabTithes churchId={activeChurchId} tithes={tithes} />
-        </TabsContent>
-
-        <TabsContent value="expenses">
-          <TabExpenses churchId={activeChurchId} />
-        </TabsContent>
-
-        <TabsContent value="churches">
-          <TabChurches
-            churches={allChurches}
-            userChurchIds={user?.churchIds ?? []}
-            isAdmin={!!user?.isAdmin}
-          />
-        </TabsContent>
-      </Tabs>
+      {isAdmin ? (
+        <Tabs defaultValue="overview">
+          <TabsList className="flex-wrap h-auto gap-1 mb-2">
+            <TabsTrigger value="overview" className="gap-1.5"><BarChart3 className="w-3.5 h-3.5" />Visão Geral</TabsTrigger>
+            <TabsTrigger value="churches" className="gap-1.5"><Building2 className="w-3.5 h-3.5" />Igrejas</TabsTrigger>
+          </TabsList>
+          <TabsContent value="overview">
+            <TabAdminOverview summaries={allSummaries} />
+          </TabsContent>
+          <TabsContent value="churches">
+            <TabChurches
+              churches={allChurches}
+              userChurchIds={[]}
+              isAdmin
+            />
+          </TabsContent>
+        </Tabs>
+      ) : (
+        <Tabs defaultValue="overview">
+          <TabsList className="flex-wrap h-auto gap-1 mb-2">
+            <TabsTrigger value="overview" className="gap-1.5"><BarChart3 className="w-3.5 h-3.5" />Visão Geral</TabsTrigger>
+            <TabsTrigger value="tithes" className="gap-1.5"><HandCoins className="w-3.5 h-3.5" />Dízimos</TabsTrigger>
+            <TabsTrigger value="expenses" className="gap-1.5"><TrendingDown className="w-3.5 h-3.5" />Despesas</TabsTrigger>
+            <TabsTrigger value="churches" className="gap-1.5"><Building2 className="w-3.5 h-3.5" />Igrejas</TabsTrigger>
+          </TabsList>
+          <TabsContent value="overview">
+            <TabOverview churchId={activeChurchId} summaries={allSummaries} tithes={tithes} />
+          </TabsContent>
+          <TabsContent value="tithes">
+            <TabTithes churchId={activeChurchId} tithes={tithes} />
+          </TabsContent>
+          <TabsContent value="expenses">
+            <TabExpenses churchId={activeChurchId} />
+          </TabsContent>
+          <TabsContent value="churches">
+            <TabChurches
+              churches={allChurches}
+              userChurchIds={user?.churchIds ?? []}
+              isAdmin={false}
+            />
+          </TabsContent>
+        </Tabs>
+      )}
     </div>
   )
 }

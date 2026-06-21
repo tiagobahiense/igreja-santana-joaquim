@@ -31,6 +31,7 @@ export async function createTithe(data: {
   fullName: string
   phone?: string
   birthDate?: Date | import('firebase/firestore').Timestamp
+  createdBy?: string
 }): Promise<string> {
   const ref = await addDoc(col(), {
     ...data,
