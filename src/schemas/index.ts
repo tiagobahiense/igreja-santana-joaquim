@@ -24,7 +24,7 @@ export const managerSchema = z.object({
   email: z.string().email('E-mail inválido'),
   displayName: z.string().min(2, 'Nome deve ter ao menos 2 caracteres'),
   password: z.string().min(6, 'Senha deve ter ao menos 6 caracteres'),
-  churchIds: z.array(z.string()).min(1, 'Selecione ao menos uma igreja'),
+  churchIds: z.array(z.string()).default([]),
 })
 
 export const titheDonorSchema = z.object({

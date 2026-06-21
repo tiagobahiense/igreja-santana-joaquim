@@ -12,6 +12,8 @@ import { Expenses } from '@/pages/Expenses'
 import { Tasks } from '@/pages/Tasks'
 import { Settings } from '@/pages/Settings'
 import { Profile } from '@/pages/Profile'
+import { AuditLogs } from '@/pages/AuditLogs'
+
 import { Toaster } from '@/components/ui/toaster'
 
 const queryClient = new QueryClient({
@@ -160,6 +162,19 @@ function AppRoutes() {
             <AppLayout>
               <Profile />
             </AppLayout>
+          </AuthGuard>
+        }
+      />
+
+      <Route
+        path="/logs"
+        element={
+          <AuthGuard>
+            <AdminGuard>
+              <AppLayout>
+                <AuditLogs />
+              </AppLayout>
+            </AdminGuard>
           </AuthGuard>
         }
       />

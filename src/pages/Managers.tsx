@@ -5,6 +5,8 @@ import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { getManagers } from '@/services/firebase/users'
 import { createManagerAccount } from '@/services/firebase/auth'
+import { addLog } from '@/services/firebase/logs'
+import { useAuthStore } from '@/stores/auth.store'
 import { useChurches } from '@/hooks/use-churches'
 import { PageHeader } from '@/components/PageHeader'
 import { EmptyState } from '@/components/EmptyState'
@@ -19,6 +21,7 @@ import { toast } from '@/hooks/use-toast'
 
 export function Managers() {
   const qc = useQueryClient()
+  const { user } = useAuthStore()
   const { data: managers = [], isLoading } = useQuery({
     queryKey: ['managers'],
     queryFn: getManagers,
@@ -38,8 +41,9 @@ export function Managers() {
   const createMutation = useMutation({
     mutationFn: (data: ManagerFormData) =>
       createManagerAccount(data.email, data.password, data.displayName, data.churchIds),
-    onSuccess: () => {
+    onSuccess: (_uid, data) => {
       qc.invalidateQueries({ queryKey: ['managers'] })
+      if (user) addLog({ userId: user.uid, userEmail: user.email, userDisplayName: user.displayName, action: 'create_manager', entityType: 'user', entityName: data.displayName })
       toast({ title: 'Gestor criado!', variant: 'success' } as Parameters<typeof toast>[0])
       setFormOpen(false)
       reset()
@@ -103,7 +107,7 @@ export function Managers() {
             <FormField label="Senha" error={errors.password?.message} required>
               <Input type="password" {...register('password')} placeholder="Mínimo 6 caracteres" />
             </FormField>
-            <FormField label="Igrejas" error={errors.churchIds?.message} required>
+            <FormField label="Igrejas" error={errors.churchIds?.message}>
               <Controller
                 control={control}
                 name="churchIds"

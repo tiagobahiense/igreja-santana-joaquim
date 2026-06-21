@@ -11,6 +11,7 @@ import {
   Menu,
   X,
   ChevronDown,
+  Shield,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth.store'
 import { useUiStore } from '@/stores/ui.store'
@@ -37,6 +38,7 @@ const navItems = [
   { to: '/despesas', icon: Receipt, label: 'Despesas' },
   { to: '/tarefas', icon: CheckSquare, label: 'Tarefas' },
   { to: '/configuracoes', icon: Settings, label: 'Configurações', adminOnly: true },
+  { to: '/logs', icon: Shield, label: 'Audit Logs', adminOnly: true },
 ]
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
@@ -79,10 +81,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         {/* Logo area */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
           <div className="flex items-center gap-2">
-            <span className="text-2xl">⛪</span>
+            <span className="text-2xl leading-none select-none">⛪</span>
             <div className="leading-tight">
-              <p className="text-xs text-white/70 font-medium">Quase-Paróquia</p>
-              <p className="text-sm font-bold gold-gradient bg-clip-text text-transparent">
+              <p className="text-[10px] text-white/60 font-medium uppercase tracking-wider">Quase-Paróquia</p>
+              <p className="text-sm font-bold text-yellow-300">
                 Sant'Ana e São Joaquim
               </p>
             </div>
