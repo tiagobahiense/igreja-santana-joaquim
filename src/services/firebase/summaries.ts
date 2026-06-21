@@ -24,13 +24,10 @@ export async function getSummary(churchId: string, year: number, month: number):
 }
 
 export async function getSummariesForYear(churchId: string, year: number): Promise<MonthlySummary[]> {
-  const q = query(
-    collection(db, 'summaries'),
-    where('churchId', '==', churchId),
-    where('year', '==', year),
-  )
-  const snap = await getDocs(q)
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as MonthlySummary)
+  const snap = await getDocs(query(collection(db, 'summaries'), where('churchId', '==', churchId)))
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }) as MonthlySummary)
+    .filter((s) => s.year === year)
 }
 
 export async function getAllSummariesForYear(year: number): Promise<MonthlySummary[]> {

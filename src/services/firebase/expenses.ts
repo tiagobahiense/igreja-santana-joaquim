@@ -7,11 +7,7 @@ import {
   serverTimestamp,
   query,
   where,
-  orderBy,
-  limit,
-  startAfter,
   type DocumentSnapshot,
-  Timestamp,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import type { Expense } from '@/types'
@@ -25,23 +21,41 @@ export interface ExpenseFilter {
   month?: number
 }
 
+function filterActive(expenses: Expense[]): Expense[] {
+  return expenses.filter((e) => e.isActive !== false)
+}
+
+function sortByDateDesc(expenses: Expense[]): Expense[] {
+  return [...expenses].sort((a, b) => b.date.toMillis() - a.date.toMillis())
+}
+
 export async function getExpenses(
   filter: ExpenseFilter,
   pageSize = 50,
   cursor?: DocumentSnapshot,
 ): Promise<{ expenses: Expense[]; lastDoc: DocumentSnapshot | null }> {
-  const conditions = [where('isActive', '==', true)]
-
-  if (filter.churchId) conditions.push(where('churchId', '==', filter.churchId))
-  if (filter.category) conditions.push(where('category', '==', filter.category))
-
-  let q = query(col(), ...conditions, orderBy('date', 'desc'), limit(pageSize))
-  if (cursor) q = query(col(), ...conditions, orderBy('date', 'desc'), startAfter(cursor), limit(pageSize))
+  const q = filter.churchId
+    ? query(col(), where('churchId', '==', filter.churchId))
+    : query(col())
 
   const snap = await getDocs(q)
-  const expenses = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Expense)
-  const lastDoc = snap.docs[snap.docs.length - 1] ?? null
-  return { expenses, lastDoc }
+  let expenses = filterActive(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Expense))
+
+  if (filter.category) {
+    expenses = expenses.filter((e) => e.category === filter.category)
+  }
+
+  expenses = sortByDateDesc(expenses)
+
+  const startIndex = cursor
+    ? expenses.findIndex((e) => e.id === cursor.id) + 1
+    : 0
+  const page = expenses.slice(startIndex, startIndex + pageSize)
+  const lastDoc = page.length > 0
+    ? snap.docs.find((d) => d.id === page[page.length - 1].id) ?? null
+    : null
+
+  return { expenses: page, lastDoc }
 }
 
 export async function createExpense(data: Omit<Expense, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
@@ -67,16 +81,14 @@ export async function getExpensesForPeriod(
   year: number,
   month: number,
 ): Promise<Expense[]> {
-  const start = Timestamp.fromDate(new Date(year, month - 1, 1))
-  const end = Timestamp.fromDate(new Date(year, month, 1))
-  const q = query(
-    col(),
-    where('churchId', '==', churchId),
-    where('isActive', '==', true),
-    where('date', '>=', start),
-    where('date', '<', end),
-    orderBy('date', 'desc'),
-  )
-  const snap = await getDocs(q)
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Expense)
+  const start = new Date(year, month - 1, 1).getTime()
+  const end = new Date(year, month, 1).getTime()
+
+  const snap = await getDocs(query(col(), where('churchId', '==', churchId)))
+  return filterActive(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Expense))
+    .filter((e) => {
+      const ms = e.date.toMillis()
+      return ms >= start && ms < end
+    })
+    .sort((a, b) => b.date.toMillis() - a.date.toMillis())
 }

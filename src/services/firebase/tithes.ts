@@ -114,19 +114,25 @@ export async function setDonationsYear(
   churchId: string,
   year: number,
   donations: Partial<Record<MonthKey, number>>,
-) {
+  options?: { skipSummary?: boolean },
+): Promise<number[]> {
   const ref = doc(db, 'tithes', tithesId, 'donations', String(year))
   await setDoc(ref, { ...donations, updatedAt: serverTimestamp() }, { merge: true })
 
-  const monthsToUpdate = new Set<number>()
+  const monthsToUpdate: number[] = []
   for (const month of MONTHS) {
     if ((donations[month.key] ?? 0) > 0) {
-      monthsToUpdate.add(monthKeyToIndex(month.key) + 1)
+      monthsToUpdate.push(monthKeyToIndex(month.key) + 1)
     }
   }
-  await Promise.all(
-    [...monthsToUpdate].map((month) => updateSummary(churchId, year, month)),
-  )
+
+  if (!options?.skipSummary) {
+    await Promise.all(
+      monthsToUpdate.map((month) => updateSummary(churchId, year, month)),
+    )
+  }
+
+  return monthsToUpdate
 }
 
 export interface ImportTitheRow {
@@ -163,6 +169,8 @@ export async function importTithesFromCsv(
     row.externalId = `DZ-${String(index + 1).padStart(4, '0')}`
   })
 
+  const monthsToRefresh = new Set<number>()
+
   for (const row of sortedRows) {
     const match = byName.get(normalizeName(row.fullName))
 
@@ -175,7 +183,8 @@ export async function importTithesFromCsv(
       if (row.phone) patch.phone = row.phone
 
       await updateTithe(match.id, patch)
-      await setDonationsYear(match.id, churchId, year, row.donations)
+      const months = await setDonationsYear(match.id, churchId, year, row.donations, { skipSummary: true })
+      months.forEach((m) => monthsToRefresh.add(m))
       byName.set(normalizeName(row.fullName), { ...match, externalId: row.externalId })
       updated++
       continue
@@ -189,7 +198,8 @@ export async function importTithesFromCsv(
       createdBy,
     })
 
-    await setDonationsYear(id, churchId, year, row.donations)
+    const months = await setDonationsYear(id, churchId, year, row.donations, { skipSummary: true })
+    months.forEach((m) => monthsToRefresh.add(m))
     byName.set(normalizeName(row.fullName), {
       id,
       churchId,
@@ -199,6 +209,10 @@ export async function importTithesFromCsv(
     } as Tithe)
     created++
   }
+
+  await Promise.all(
+    [...monthsToRefresh].map((month) => updateSummary(churchId, year, month)),
+  )
 
   return { created, updated }
 }
