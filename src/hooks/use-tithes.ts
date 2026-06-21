@@ -7,6 +7,7 @@ import {
   getDonations,
   setDonation,
   getAllDonationsForYear,
+  importTithesFromCsv,
 } from '@/services/firebase/tithes'
 import { toast } from '@/hooks/use-toast'
 import type { MonthKey } from '@/lib/utils'
@@ -94,6 +95,40 @@ export function useSetDonation() {
       qc.invalidateQueries({ queryKey: ['donations', variables.tithesId] })
       qc.invalidateQueries({ queryKey: ['all-donations', variables.churchId] })
       qc.invalidateQueries({ queryKey: ['summaries'] })
+    },
+  })
+}
+
+export function useImportTithes() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      churchId,
+      year,
+      rows,
+      createdBy,
+    }: {
+      churchId: string
+      year: number
+      rows: Parameters<typeof importTithesFromCsv>[2]
+      createdBy?: string
+    }) => importTithesFromCsv(churchId, year, rows, createdBy),
+    onSuccess: (result, variables) => {
+      qc.invalidateQueries({ queryKey: ['tithes'] })
+      qc.invalidateQueries({ queryKey: ['all-donations', variables.churchId] })
+      qc.invalidateQueries({ queryKey: ['summaries'] })
+      toast({
+        title: 'Importação concluída!',
+        description: `${result.created} criado(s), ${result.updated} atualizado(s).`,
+        variant: 'success',
+      } as Parameters<typeof toast>[0])
+    },
+    onError: (err: Error) => {
+      toast({
+        title: 'Erro na importação',
+        description: err.message || 'Verifique o formato do CSV.',
+        variant: 'destructive',
+      })
     },
   })
 }

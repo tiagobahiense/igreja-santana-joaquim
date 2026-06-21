@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Plus, HandCoins, Search, Pencil } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { Plus, HandCoins, Search, Pencil, Upload, Filter } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useAuthStore } from '@/stores/auth.store'
@@ -8,17 +8,36 @@ import { useMatrizChurch } from '@/hooks/use-churches'
 import { PageHeader } from '@/components/PageHeader'
 import { AuthorTag } from '@/components/AuthorTag'
 import { EmptyState } from '@/components/EmptyState'
+import { TitheImportDialog } from '@/components/TitheImportDialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { FormField } from '@/components/FormField'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Label } from '@/components/ui/label'
 import { titheDonorSchema, type TitheDonorFormData } from '@/schemas'
 import { MONTHS, formatCurrency, calculateAge, cn, type MonthKey } from '@/lib/utils'
+import {
+  filterTithes,
+  computeMonthTotals,
+  computeGrandTotal,
+  getDonationTotalForRecord,
+  type TitheSearchMode,
+} from '@/lib/tithe-filters'
 import type { Tithe } from '@/types'
 import { Timestamp } from 'firebase/firestore'
 import { PARISH_NAME } from '@/lib/churches'
 
 const CURRENT_YEAR = new Date().getFullYear()
+
+const SEARCH_MODE_LABELS: Record<TitheSearchMode, string> = {
+  all: 'Tudo',
+  fullName: 'Nome completo',
+  firstName: 'Primeiro nome',
+  lastName: 'Sobrenome',
+  identifier: 'Identificador',
+  value: 'Valor (R$)',
+}
 
 export function Tithes() {
   const { user } = useAuthStore()
@@ -32,7 +51,11 @@ export function Tithes() {
   const setDonation = useSetDonation()
 
   const [search, setSearch] = useState('')
+  const [searchMode, setSearchMode] = useState<TitheSearchMode>('all')
+  const [monthFilter, setMonthFilter] = useState<MonthKey | 'all'>('all')
+  const [minTotal, setMinTotal] = useState('')
   const [formOpen, setFormOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
   const [editing, setEditing] = useState<Tithe | null>(null)
   const [year] = useState(CURRENT_YEAR)
 
@@ -40,8 +63,28 @@ export function Tithes() {
     resolver: zodResolver(titheDonorSchema),
   })
 
-  const filtered = tithes.filter((t) =>
-    t.fullName.toLowerCase().includes(search.toLowerCase()),
+  const minTotalCents = useMemo(() => {
+    const n = parseFloat(minTotal.replace(',', '.'))
+    return Number.isNaN(n) ? 0 : Math.round(n * 100)
+  }, [minTotal])
+
+  const filtered = useMemo(
+    () => filterTithes(tithes, allDonations, {
+      query: search,
+      searchMode,
+      monthFilter,
+      minTotalCents,
+    }),
+    [tithes, allDonations, search, searchMode, monthFilter, minTotalCents],
+  )
+
+  const monthTotals = useMemo(
+    () => computeMonthTotals(filtered, allDonations),
+    [filtered, allDonations],
+  )
+  const grandTotal = useMemo(
+    () => computeGrandTotal(filtered, allDonations),
+    [filtered, allDonations],
   )
 
   function openCreate() {
@@ -112,32 +155,105 @@ export function Tithes() {
     <div className="space-y-4">
       <PageHeader
         title="Dízimos"
-        description={`Grade ${year} — ${PARISH_NAME}`}
+        description={`Grade ${year} — ${PARISH_NAME} · ${tithes.length} dizimista(s) · Total ${formatCurrency(grandTotal)}`}
         action={
-          <Button onClick={openCreate} className="gap-2 gold-gradient text-white">
-            <Plus className="w-4 h-4" />Novo Dizimista
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setImportOpen(true)} className="gap-2">
+              <Upload className="w-4 h-4" />Importar CSV
+            </Button>
+            <Button onClick={openCreate} className="gap-2 gold-gradient text-white">
+              <Plus className="w-4 h-4" />Novo Dizimista
+            </Button>
+          </div>
         }
       />
 
-      <div className="relative max-w-xs">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar dizimista..."
-          className="pl-9"
-        />
+      <div className="flex flex-wrap gap-3 items-end p-4 rounded-xl glass-card">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={
+              searchMode === 'value' ? 'Ex: 20 ou 20,00' :
+              searchMode === 'identifier' ? 'Ex: DZ-0001 ou 42' :
+              'Buscar dizimista...'
+            }
+            className="pl-9"
+          />
+        </div>
+
+        <div className="space-y-1 min-w-[160px]">
+          <Label className="text-xs text-muted-foreground flex items-center gap-1">
+            <Filter className="w-3 h-3" />Buscar por
+          </Label>
+          <Select value={searchMode} onValueChange={(v) => setSearchMode(v as TitheSearchMode)}>
+            <SelectTrigger className="h-9">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(Object.entries(SEARCH_MODE_LABELS) as [TitheSearchMode, string][]).map(([key, label]) => (
+                <SelectItem key={key} value={key}>{label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-1 min-w-[130px]">
+          <Label className="text-xs text-muted-foreground">Mês com doação</Label>
+          <Select value={monthFilter} onValueChange={(v) => setMonthFilter(v as MonthKey | 'all')}>
+            <SelectTrigger className="h-9">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              {MONTHS.map((m) => (
+                <SelectItem key={m.key} value={m.key}>{m.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-1 min-w-[120px]">
+          <Label className="text-xs text-muted-foreground">Total mínimo (R$)</Label>
+          <Input
+            value={minTotal}
+            onChange={(e) => setMinTotal(e.target.value)}
+            placeholder="0,00"
+            className="h-9"
+          />
+        </div>
+
+        {(search || monthFilter !== 'all' || minTotal) && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => { setSearch(''); setMonthFilter('all'); setMinTotal(''); setSearchMode('all') }}
+          >
+            Limpar filtros
+          </Button>
+        )}
       </div>
 
       {filtered.length === 0 ? (
-        <EmptyState icon={HandCoins} title="Nenhum dizimista encontrado" action={<Button onClick={openCreate}>Cadastrar dizimista</Button>} />
+        <EmptyState
+          icon={HandCoins}
+          title={tithes.length === 0 ? 'Nenhum dizimista cadastrado' : 'Nenhum resultado para os filtros'}
+          action={
+            tithes.length === 0
+              ? <Button onClick={openCreate}>Cadastrar dizimista</Button>
+              : undefined
+          }
+        />
       ) : (
         <div className="overflow-x-auto rounded-xl glass-card">
-          <table className="w-full text-sm min-w-[900px]">
+          <table className="w-full text-sm min-w-[980px]">
             <thead>
               <tr className="border-b border-border">
-                <th className="text-left px-4 py-3 font-semibold text-xs text-muted-foreground uppercase tracking-wide sticky left-0 bg-white/80 backdrop-blur-sm min-w-[180px]">
+                <th className="text-left px-3 py-3 font-semibold text-xs text-muted-foreground uppercase tracking-wide sticky left-0 bg-white/80 backdrop-blur-sm min-w-[72px]">
+                  ID
+                </th>
+                <th className="text-left px-4 py-3 font-semibold text-xs text-muted-foreground uppercase tracking-wide sticky left-[72px] bg-white/80 backdrop-blur-sm min-w-[180px]">
                   Dizimista
                 </th>
                 {MONTHS.map((m) => (
@@ -152,12 +268,18 @@ export function Tithes() {
             <tbody>
               {filtered.map((tithe) => {
                 const donations = allDonations?.get(tithe.id)
-                const total = MONTHS.reduce((sum, m) => sum + (donations?.[m.key] ?? 0), 0)
+                const total = getDonationTotalForRecord(donations)
                 return (
                   <tr key={tithe.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
-                    <td className="px-4 py-2 sticky left-0 bg-white/80 backdrop-blur-sm">
+                    <td className="px-3 py-2 sticky left-0 bg-white/80 backdrop-blur-sm text-xs font-mono text-muted-foreground">
+                      {tithe.externalId ?? '—'}
+                    </td>
+                    <td className="px-4 py-2 sticky left-[72px] bg-white/80 backdrop-blur-sm">
                       <p className="font-medium truncate max-w-[160px]">{tithe.fullName}</p>
                       <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                        {tithe.phone && (
+                          <span className="text-xs text-muted-foreground">{tithe.phone}</span>
+                        )}
                         {tithe.birthDate && (
                           <span className="text-xs text-muted-foreground">
                             {calculateAge(tithe.birthDate.toDate())} anos
@@ -197,6 +319,22 @@ export function Tithes() {
                 )
               })}
             </tbody>
+            <tfoot>
+              <tr className="border-t-2 border-primary/20 bg-primary/5 font-semibold">
+                <td className="px-3 py-3 sticky left-0 bg-primary/5 text-xs" colSpan={2}>
+                  Saldo ({filtered.length} de {tithes.length})
+                </td>
+                {MONTHS.map((m) => (
+                  <td key={m.key} className="px-2 py-3 text-center text-xs text-primary">
+                    {monthTotals[m.key] > 0 ? formatCurrency(monthTotals[m.key]) : '—'}
+                  </td>
+                ))}
+                <td className="px-2 py-3 text-center text-sm text-primary">
+                  {formatCurrency(grandTotal)}
+                </td>
+                <td />
+              </tr>
+            </tfoot>
           </table>
         </div>
       )}
@@ -225,6 +363,14 @@ export function Tithes() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <TitheImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        churchId={matrizChurchId}
+        defaultYear={year}
+        createdBy={user?.uid}
+      />
     </div>
   )
 }

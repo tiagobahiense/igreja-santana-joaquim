@@ -35,6 +35,7 @@ export interface Church {
 export interface Tithe {
   id: string
   churchId: string
+  externalId?: string
   fullName: string
   phone?: string
   birthDate?: Timestamp

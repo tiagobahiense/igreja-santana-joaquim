@@ -18,6 +18,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import { formatCurrency, formatDate, isBirthdayInNextDays, MONTHS, getDonationTotal, getDonationMonthsCount, getLastDonationMonth, getCurrentMonthDonation, getMonthLabel } from '@/lib/utils'
+import { computeGrandTotal, computeMonthTotals } from '@/lib/tithe-filters'
 import { useUiStore } from '@/stores/ui.store'
 import { useExpenses } from '@/hooks/use-expenses'
 import { UpcomingEventsPanel } from '@/components/UpcomingEventsPanel'
@@ -215,8 +216,13 @@ function TabTithes({
   const donationsMap = allDonations ?? new Map()
 
   const monthlyData = MONTHS.map((m, idx) => {
+    const liveMonthTotal = computeMonthTotals(donors, donationsMap)[m.key]
     const s = summaries.find(s => s.month === idx + 1)
-    return { month: m.label, value: (s?.totalDonations ?? 0) / 100, count: s?.activeTithesCount ?? 0 }
+    return {
+      month: m.label,
+      value: (liveMonthTotal || s?.totalDonations || 0) / 100,
+      count: s?.activeTithesCount ?? donors.filter((t) => (donationsMap.get(t.id)?.[m.key] ?? 0) > 0).length,
+    }
   })
 
   const cumulative: number[] = []
@@ -270,6 +276,7 @@ function TabTithes({
       const monthsPaid = getDonationMonthsCount(record)
       return {
         id: t.id,
+        externalId: t.externalId,
         name: t.fullName,
         total,
         monthsPaid,
@@ -280,11 +287,20 @@ function TabTithes({
     }).sort((a, b) => b.total - a.total),
   [donors, donationsMap])
 
-  const totalArrecadado = donorStats.reduce((a, d) => a + d.total, 0)
+  const totalArrecadado = computeGrandTotal(donors, donationsMap)
+  const currentMonthLive = donationsMap
+    ? donors.reduce((sum, t) => sum + (donationsMap.get(t.id)?.[MONTHS[CURRENT_MONTH - 1]?.key] ?? 0), 0)
+    : 0
+  const prevMonthLive = donationsMap
+    ? donors.reduce((sum, t) => sum + (donationsMap.get(t.id)?.[MONTHS[CURRENT_MONTH - 2]?.key] ?? 0), 0)
+    : 0
   const donorsThisMonth = donorStats.filter((d) => d.currentMonth > 0).length
   const avgPerDonor = donors.length > 0 ? Math.round(totalArrecadado / donors.length) : 0
   const topDonor = donorStats[0]
   const top10 = donorStats.slice(0, 10)
+  const growthLive = prevMonthLive
+    ? (((currentMonthLive || currentMonth?.totalDonations || 0) - prevMonthLive) / prevMonthLive * 100).toFixed(1)
+    : growth
 
   const topDonorsOption = {
     tooltip: {
@@ -358,8 +374,8 @@ function TabTithes({
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <KpiCard title="Arrecadado no mês" value={formatCurrency(currentMonth?.totalDonations ?? 0)} icon={HandCoins} color="gold" subtitle={growth ? `${Number(growth) >= 0 ? '+' : ''}${growth}% vs mês anterior` : undefined} />
-        <KpiCard title="Acumulado no ano" value={formatCurrency(summaries.reduce((a, s) => a + s.totalDonations, 0))} icon={TrendingUp} color="green" />
+        <KpiCard title="Arrecadado no mês" value={formatCurrency(currentMonthLive || currentMonth?.totalDonations || 0)} icon={HandCoins} color="gold" subtitle={growthLive ? `${Number(growthLive) >= 0 ? '+' : ''}${growthLive}% vs mês anterior` : undefined} />
+        <KpiCard title="Acumulado no ano" value={formatCurrency(totalArrecadado)} icon={TrendingUp} color="green" />
         <KpiCard title="Dizimistas ativos" value={String(donors.length)} icon={Users} color="blue" subtitle={`${donorsThisMonth} contribuíram este mês`} />
         <KpiCard title="Média por dizimista" value={formatCurrency(avgPerDonor)} icon={DollarSign} color="gold" subtitle={topDonor ? `maior: ${topDonor.name.split(' ')[0]}` : undefined} />
       </div>
@@ -398,6 +414,7 @@ function TabTithes({
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-left text-muted-foreground">
+                    <th className="pb-2 pr-4 font-medium">ID</th>
                     <th className="pb-2 pr-4 font-medium">Nome</th>
                     <th className="pb-2 pr-4 font-medium text-right">Total {CURRENT_YEAR}</th>
                     <th className="pb-2 pr-4 font-medium text-right">Meses c/ doação</th>
@@ -409,6 +426,7 @@ function TabTithes({
                 <tbody>
                   {donorStats.map((d) => (
                     <tr key={d.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
+                      <td className="py-2.5 pr-4 text-xs font-mono text-muted-foreground">{d.externalId ?? '—'}</td>
                       <td className="py-2.5 pr-4 font-medium">{d.name}</td>
                       <td className="py-2.5 pr-4 text-right">{formatCurrency(d.total)}</td>
                       <td className="py-2.5 pr-4 text-right">{d.monthsPaid}</td>
