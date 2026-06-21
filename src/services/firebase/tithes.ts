@@ -5,6 +5,7 @@ import {
   getDoc,
   addDoc,
   updateDoc,
+  deleteDoc,
   serverTimestamp,
   query,
   where,
@@ -16,6 +17,20 @@ import { MONTHS, type MonthKey } from '@/lib/utils'
 import { updateSummary } from './summaries'
 
 const col = () => collection(db, 'tithes')
+
+function stripUndefined<T extends Record<string, unknown>>(obj: T): Partial<T> {
+  return Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined)) as Partial<T>
+}
+
+export async function getNextExternalId(churchId: string): Promise<string> {
+  const all = await getTithes(churchId, true)
+  const nums = all
+    .map((t) => t.externalId?.match(/^DZ-(\d+)$/)?.[1])
+    .filter(Boolean)
+    .map((n) => parseInt(n!, 10))
+  const next = nums.length > 0 ? Math.max(...nums) + 1 : 1
+  return `DZ-${String(next).padStart(4, '0')}`
+}
 
 export async function getTithes(churchId: string, includeInactive = false): Promise<Tithe[]> {
   const q = query(col(), where('churchId', '==', churchId))
@@ -43,6 +58,7 @@ export async function createTithe(data: {
     updatedAt: serverTimestamp(),
   }
   if (data.externalId) payload.externalId = data.externalId
+  else payload.externalId = await getNextExternalId(data.churchId)
   if (data.phone) payload.phone = data.phone
   if (data.birthDate) payload.birthDate = data.birthDate
   if (data.createdBy) payload.createdBy = data.createdBy
@@ -52,7 +68,29 @@ export async function createTithe(data: {
 }
 
 export async function updateTithe(id: string, data: Partial<Pick<Tithe, 'fullName' | 'phone' | 'birthDate' | 'churchId' | 'isActive' | 'externalId'>>) {
-  await updateDoc(doc(db, 'tithes', id), { ...data, updatedAt: serverTimestamp() })
+  await updateDoc(doc(db, 'tithes', id), { ...stripUndefined(data as Record<string, unknown>), updatedAt: serverTimestamp() })
+}
+
+export async function softDeleteTithe(id: string) {
+  await updateDoc(doc(db, 'tithes', id), {
+    isActive: false,
+    deletedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  })
+}
+
+export async function restoreTithe(id: string) {
+  await updateDoc(doc(db, 'tithes', id), {
+    isActive: true,
+    deletedAt: null,
+    updatedAt: serverTimestamp(),
+  })
+}
+
+export async function hardDeleteTithe(id: string) {
+  const donationsSnap = await getDocs(collection(db, 'tithes', id, 'donations'))
+  await Promise.all(donationsSnap.docs.map((d) => deleteDoc(d.ref)))
+  await deleteDoc(doc(db, 'tithes', id))
 }
 
 export async function transferTithe(id: string, newChurchId: string, fromChurchId: string) {
@@ -114,7 +152,6 @@ export async function importTithesFromCsv(
   createdBy?: string,
 ): Promise<ImportTithesResult> {
   const existing = await getTithes(churchId, true)
-  const byExternalId = new Map(existing.filter((t) => t.externalId).map((t) => [t.externalId!, t]))
   const byName = new Map(existing.map((t) => [normalizeName(t.fullName), t]))
 
   let created = 0
@@ -122,21 +159,24 @@ export async function importTithesFromCsv(
 
   const sortedRows = [...rows].sort((a, b) => a.fullName.localeCompare(b.fullName, 'pt-BR'))
 
+  sortedRows.forEach((row, index) => {
+    row.externalId = `DZ-${String(index + 1).padStart(4, '0')}`
+  })
+
   for (const row of sortedRows) {
-    const match =
-      byExternalId.get(row.externalId)
-      ?? byName.get(normalizeName(row.fullName))
+    const match = byName.get(normalizeName(row.fullName))
 
     if (match) {
-      await updateTithe(match.id, {
+      const patch: Parameters<typeof updateTithe>[1] = {
         fullName: row.fullName,
-        phone: row.phone,
         externalId: row.externalId,
         isActive: true,
-      })
+      }
+      if (row.phone) patch.phone = row.phone
+
+      await updateTithe(match.id, patch)
       await setDonationsYear(match.id, churchId, year, row.donations)
-      byExternalId.set(row.externalId, { ...match, externalId: row.externalId })
-      byName.set(normalizeName(row.fullName), match)
+      byName.set(normalizeName(row.fullName), { ...match, externalId: row.externalId })
       updated++
       continue
     }
@@ -150,6 +190,13 @@ export async function importTithesFromCsv(
     })
 
     await setDonationsYear(id, churchId, year, row.donations)
+    byName.set(normalizeName(row.fullName), {
+      id,
+      churchId,
+      externalId: row.externalId,
+      fullName: row.fullName,
+      isActive: true,
+    } as Tithe)
     created++
   }
 

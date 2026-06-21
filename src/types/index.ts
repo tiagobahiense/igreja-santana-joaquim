@@ -40,6 +40,7 @@ export interface Tithe {
   phone?: string
   birthDate?: Timestamp
   isActive: boolean
+  deletedAt?: Timestamp
   transferredFrom?: string
   createdBy?: string
   createdAt: Timestamp

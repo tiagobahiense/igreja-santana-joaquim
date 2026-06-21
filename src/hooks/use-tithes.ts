@@ -8,6 +8,9 @@ import {
   setDonation,
   getAllDonationsForYear,
   importTithesFromCsv,
+  softDeleteTithe,
+  restoreTithe,
+  hardDeleteTithe,
 } from '@/services/firebase/tithes'
 import { toast } from '@/hooks/use-toast'
 import type { MonthKey } from '@/lib/utils'
@@ -130,5 +133,44 @@ export function useImportTithes() {
         variant: 'destructive',
       })
     },
+  })
+}
+
+export function useSoftDeleteTithe() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: softDeleteTithe,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tithes'] })
+      qc.invalidateQueries({ queryKey: ['all-donations'] })
+      qc.invalidateQueries({ queryKey: ['summaries'] })
+      toast({ title: 'Dizimista desativado', variant: 'success' } as Parameters<typeof toast>[0])
+    },
+    onError: () => toast({ title: 'Erro ao desativar', variant: 'destructive' }),
+  })
+}
+
+export function useRestoreTithe() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: restoreTithe,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tithes'] })
+      toast({ title: 'Dizimista restaurado!', variant: 'success' } as Parameters<typeof toast>[0])
+    },
+  })
+}
+
+export function useHardDeleteTithe() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: hardDeleteTithe,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tithes'] })
+      qc.invalidateQueries({ queryKey: ['all-donations'] })
+      qc.invalidateQueries({ queryKey: ['summaries'] })
+      toast({ title: 'Dizimista excluído permanentemente', variant: 'success' } as Parameters<typeof toast>[0])
+    },
+    onError: () => toast({ title: 'Erro ao excluir', variant: 'destructive' }),
   })
 }

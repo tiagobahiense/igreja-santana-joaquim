@@ -97,8 +97,8 @@ export function TitheImportDialog({
 
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Colunas esperadas: Identificador, Nome, Telefone, Janeiro–Dezembro, Total.
-            Dizimistas são ordenados alfabeticamente; IDs ausentes recebem DZ-0001, DZ-0002…
+            Colunas esperadas: Nome, Telefone, Janeiro–Dezembro, Total.
+            IDs gerados automaticamente (DZ-0001, DZ-0002…) em ordem alfabética.
           </p>
 
           <div className="space-y-2">

@@ -124,12 +124,9 @@ export function parseTitheCsv(content: string): ParsedTitheRow[] {
 
   parsed.sort((a, b) => a.fullName.localeCompare(b.fullName, 'pt-BR'))
 
-  let autoId = 1
-  for (const row of parsed) {
-    if (!row.externalId) {
-      row.externalId = `DZ-${String(autoId++).padStart(4, '0')}`
-    }
-  }
+  parsed.forEach((row, index) => {
+    row.externalId = `DZ-${String(index + 1).padStart(4, '0')}`
+  })
 
   return parsed
 }

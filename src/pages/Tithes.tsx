@@ -1,9 +1,12 @@
 import { useMemo, useState } from 'react'
-import { Plus, HandCoins, Search, Pencil, Upload, Filter } from 'lucide-react'
+import { Plus, HandCoins, Search, Pencil, Upload, Filter, Trash2, RotateCcw } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useAuthStore } from '@/stores/auth.store'
-import { useTithes, useCreateTithe, useUpdateTithe, useSetDonation, useAllDonationsForYear } from '@/hooks/use-tithes'
+import {
+  useTithes, useCreateTithe, useUpdateTithe, useSetDonation, useAllDonationsForYear,
+  useSoftDeleteTithe, useRestoreTithe, useHardDeleteTithe,
+} from '@/hooks/use-tithes'
 import { useMatrizChurch } from '@/hooks/use-churches'
 import { PageHeader } from '@/components/PageHeader'
 import { AuthorTag } from '@/components/AuthorTag'
@@ -11,8 +14,13 @@ import { EmptyState } from '@/components/EmptyState'
 import { TitheImportDialog } from '@/components/TitheImportDialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
 import { FormField } from '@/components/FormField'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import { titheDonorSchema, type TitheDonorFormData } from '@/schemas'
@@ -44,11 +52,19 @@ export function Tithes() {
   const { data: matrizChurch, isLoading: matrizLoading } = useMatrizChurch()
   const matrizChurchId = matrizChurch?.id ?? ''
 
-  const { data: tithes = [], isLoading: tithesLoading } = useTithes(matrizChurchId)
+  const [showInactive, setShowInactive] = useState(false)
+  const [softDeleteTarget, setSoftDeleteTarget] = useState<Tithe | null>(null)
+  const [hardDeleteTarget, setHardDeleteTarget] = useState<Tithe | null>(null)
+  const [hardDeleteConfirm, setHardDeleteConfirm] = useState('')
+
+  const { data: tithes = [], isLoading: tithesLoading } = useTithes(matrizChurchId, showInactive)
   const { data: allDonations } = useAllDonationsForYear(matrizChurchId, CURRENT_YEAR)
   const createTithe = useCreateTithe()
   const updateTithe = useUpdateTithe()
   const setDonation = useSetDonation()
+  const softDelete = useSoftDeleteTithe()
+  const restore = useRestoreTithe()
+  const hardDelete = useHardDeleteTithe()
 
   const [search, setSearch] = useState('')
   const [searchMode, setSearchMode] = useState<TitheSearchMode>('all')
@@ -233,6 +249,14 @@ export function Tithes() {
             Limpar filtros
           </Button>
         )}
+
+        <Button
+          variant={showInactive ? 'secondary' : 'outline'}
+          size="sm"
+          onClick={() => setShowInactive((v) => !v)}
+        >
+          {showInactive ? 'Ocultar inativos' : 'Ver inativos'}
+        </Button>
       </div>
 
       {filtered.length === 0 ? (
@@ -262,20 +286,27 @@ export function Tithes() {
                   </th>
                 ))}
                 <th className="text-center px-2 py-3 font-semibold text-xs text-muted-foreground uppercase tracking-wide min-w-[90px]">Total</th>
-                <th className="px-3 py-3 min-w-[40px]" />
+                <th className="px-3 py-3 min-w-[88px]" />
               </tr>
             </thead>
             <tbody>
               {filtered.map((tithe) => {
                 const donations = allDonations?.get(tithe.id)
                 const total = getDonationTotalForRecord(donations)
+                const inactive = tithe.isActive === false
                 return (
-                  <tr key={tithe.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
+                  <tr key={tithe.id} className={cn(
+                    'border-b border-border/50 hover:bg-muted/30 transition-colors',
+                    inactive && 'opacity-60 bg-muted/20',
+                  )}>
                     <td className="px-3 py-2 sticky left-0 bg-white/80 backdrop-blur-sm text-xs font-mono text-muted-foreground">
                       {tithe.externalId ?? '—'}
                     </td>
                     <td className="px-4 py-2 sticky left-[72px] bg-white/80 backdrop-blur-sm">
-                      <p className="font-medium truncate max-w-[160px]">{tithe.fullName}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="font-medium truncate max-w-[140px]">{tithe.fullName}</p>
+                        {inactive && <Badge variant="warning" className="text-[10px] px-1 py-0">Inativo</Badge>}
+                      </div>
                       <div className="flex flex-wrap items-center gap-1 mt-0.5">
                         {tithe.phone && (
                           <span className="text-xs text-muted-foreground">{tithe.phone}</span>
@@ -296,11 +327,12 @@ export function Tithes() {
                             type="number"
                             min="0"
                             step="0.01"
+                            disabled={inactive}
                             defaultValue={val ? (val / 100).toFixed(2) : ''}
                             onBlur={(e) => handleDonationChange(tithe.id, m.key, e.target.value)}
                             placeholder="—"
                             className={cn(
-                              'w-16 text-center text-xs rounded-md border px-1 py-1 focus:outline-none focus:ring-1 focus:ring-primary',
+                              'w-16 text-center text-xs rounded-md border px-1 py-1 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50',
                               val ? 'border-green-300 bg-green-50' : 'border-border bg-background',
                             )}
                           />
@@ -311,9 +343,27 @@ export function Tithes() {
                       {formatCurrency(total)}
                     </td>
                     <td className="px-3 py-2">
-                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(tithe)}>
-                        <Pencil className="w-3 h-3" />
-                      </Button>
+                      <div className="flex items-center gap-0.5">
+                        {!inactive ? (
+                          <>
+                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(tithe)}>
+                              <Pencil className="w-3 h-3" />
+                            </Button>
+                            <Button size="icon" variant="ghost" className="h-7 w-7 text-yellow-600" onClick={() => setSoftDeleteTarget(tithe)}>
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <Button size="icon" variant="ghost" className="h-7 w-7" title="Restaurar" onClick={() => restore.mutate(tithe.id)}>
+                              <RotateCcw className="w-3 h-3" />
+                            </Button>
+                            <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" title="Excluir permanentemente" onClick={() => { setHardDeleteTarget(tithe); setHardDeleteConfirm('') }}>
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
+                          </>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 )
@@ -371,6 +421,58 @@ export function Tithes() {
         defaultYear={year}
         createdBy={user?.uid}
       />
+
+      <AlertDialog open={!!softDeleteTarget} onOpenChange={() => setSoftDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Desativar dizimista?</AlertDialogTitle>
+            <AlertDialogDescription>
+              <strong>{softDeleteTarget?.fullName}</strong> ficará inativo. Os dados e histórico de dízimos são preservados e podem ser restaurados.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-yellow-600 hover:bg-yellow-700"
+              onClick={() => { softDelete.mutate(softDeleteTarget!.id); setSoftDeleteTarget(null) }}
+            >
+              Desativar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!hardDeleteTarget} onOpenChange={() => setHardDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir permanentemente?</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              <p>Esta ação <strong>não pode ser desfeita</strong>. Todos os dízimos de <strong>{hardDeleteTarget?.fullName}</strong> serão apagados.</p>
+              <p>Digite o nome completo para confirmar:</p>
+              <Input
+                value={hardDeleteConfirm}
+                onChange={(e) => setHardDeleteConfirm(e.target.value)}
+                placeholder={hardDeleteTarget?.fullName}
+              />
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setHardDeleteConfirm('')}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              disabled={hardDeleteConfirm !== hardDeleteTarget?.fullName}
+              onClick={async () => {
+                if (!hardDeleteTarget || hardDeleteConfirm !== hardDeleteTarget.fullName) return
+                await hardDelete.mutateAsync(hardDeleteTarget.id)
+                setHardDeleteTarget(null)
+                setHardDeleteConfirm('')
+              }}
+            >
+              Excluir para sempre
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
