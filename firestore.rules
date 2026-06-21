@@ -13,8 +13,10 @@ service cloud.firestore {
     }
 
     function hasChurch(churchId) {
+      let userData = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
       return isSignedIn() &&
-        churchId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.churchIds;
+        'churchIds' in userData &&
+        churchId in userData.churchIds;
     }
 
     function isOwner(uid) {

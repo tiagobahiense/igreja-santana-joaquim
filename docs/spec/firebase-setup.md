@@ -61,7 +61,9 @@ FIREBASE_ADMIN_PASSWORD=sua-senha-segura
 Em **Authentication → Settings → Authorized domains**, garantir:
 
 - `localhost`
-- Seu domínio Vercel (ex.: `seu-app.vercel.app`)
+- Domínio de produção (ex.: `seu-app.pages.dev` no Cloudflare ou `seu-app.vercel.app`)
+
+Deploy Cloudflare: [`docs/cloudflare-deploy.md`](../cloudflare-deploy.md)
 
 ---
 

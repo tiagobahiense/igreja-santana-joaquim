@@ -22,7 +22,7 @@ import { toast } from '@/hooks/use-toast'
 export function Managers() {
   const qc = useQueryClient()
   const { user } = useAuthStore()
-  const { data: managers = [], isLoading } = useQuery({
+  const { data: managers = [], isLoading, isError, error } = useQuery({
     queryKey: ['managers'],
     queryFn: getManagers,
     staleTime: 1000 * 60 * 5,
@@ -63,6 +63,16 @@ export function Managers() {
 
   if (isLoading) return <div className="p-8 text-center text-muted-foreground">Carregando...</div>
 
+  if (isError) {
+    const message = (error as { message?: string })?.message ?? 'Erro desconhecido'
+    return (
+      <div className="p-8 text-center space-y-2">
+        <p className="text-destructive font-medium">Erro ao carregar gestores</p>
+        <p className="text-sm text-muted-foreground max-w-md mx-auto">{message}</p>
+      </div>
+    )
+  }
+
   return (
     <div>
       <PageHeader
@@ -86,7 +96,7 @@ export function Managers() {
                 <p className="font-semibold text-sm">{m.displayName}</p>
                 <p className="text-xs text-muted-foreground">{m.email}</p>
                 <div className="flex flex-wrap gap-1 mt-1">
-                  {m.churchIds.map((cid) => {
+                  {(m.churchIds ?? []).map((cid) => {
                     const church = churches.find((c) => c.id === cid)
                     return church ? <Badge key={cid} variant="secondary" className="text-xs">{church.name}</Badge> : null
                   })}

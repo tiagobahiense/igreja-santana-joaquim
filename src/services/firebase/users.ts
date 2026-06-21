@@ -7,7 +7,6 @@ import {
   query,
   orderBy,
   serverTimestamp,
-  where,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import type { UserProfile } from '@/types'
@@ -15,9 +14,11 @@ import type { UserProfile } from '@/types'
 const col = () => collection(db, 'users')
 
 export async function getManagers(): Promise<UserProfile[]> {
-  const q = query(col(), where('isAdmin', '==', false), orderBy('displayName'))
+  const q = query(col(), orderBy('displayName'))
   const snap = await getDocs(q)
-  return snap.docs.map((d) => ({ uid: d.id, ...d.data() }) as UserProfile)
+  return snap.docs
+    .map((d) => ({ uid: d.id, ...d.data() }) as UserProfile)
+    .filter((u) => !u.isAdmin)
 }
 
 export async function getAllUsers(): Promise<UserProfile[]> {
