@@ -4,7 +4,8 @@ import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Timestamp } from 'firebase/firestore'
 import { useAuthStore } from '@/stores/auth.store'
-import { useActiveChurches } from '@/hooks/use-churches'
+import { useMatrizChurch, useCapelaChurches } from '@/hooks/use-churches'
+import { PARISH_NAME } from '@/lib/churches'
 import { useCreateExpense, useUpdateExpense, useDeleteExpense } from '@/hooks/use-expenses'
 import { ChurchFinanceCard } from '@/components/ChurchFinanceCard'
 import { PageHeader } from '@/components/PageHeader'
@@ -30,7 +31,9 @@ import { Label } from '@/components/ui/label'
 
 export function Expenses() {
   const { user } = useAuthStore()
-  const { data: userChurches = [], isLoading: churchesLoading, isError: churchesError } = useActiveChurches()
+  const { data: matrizChurch, isLoading: matrizLoading } = useMatrizChurch()
+  const { data: capelas = [], isLoading: capelasLoading, isError: churchesError } = useCapelaChurches()
+  const churchesLoading = matrizLoading || capelasLoading
 
   const createExpense = useCreateExpense()
   const updateExpense = useUpdateExpense()
@@ -57,10 +60,10 @@ export function Expenses() {
   const categories = isIncome ? INCOME_CATEGORIES : EXPENSE_CATEGORIES
 
   function openCreate(churchId: string, type: FinancialEntryType) {
-    const church = userChurches.find((c) => c.id === churchId)
+    const isMatriz = matrizChurch?.id === churchId
     setEditing(null)
     setFormType(type)
-    setFormChurchName(church?.name ?? '')
+    setFormChurchName(isMatriz ? PARISH_NAME : (capelas.find((c) => c.id === churchId)?.name ?? ''))
     reset({
       type,
       churchId,
@@ -80,10 +83,10 @@ export function Expenses() {
 
   function openEdit(expense: Expense) {
     const type = expense.type ?? 'expense'
-    const church = userChurches.find((c) => c.id === expense.churchId)
+    const isMatriz = expense.churchId === matrizChurch?.id
     setEditing(expense)
     setFormType(type)
-    setFormChurchName(church?.name ?? '')
+    setFormChurchName(isMatriz ? PARISH_NAME : (capelas.find((c) => c.id === expense.churchId)?.name ?? ''))
     reset({
       type,
       churchId: expense.churchId,
@@ -145,27 +148,54 @@ export function Expenses() {
     <div className="space-y-6">
       <PageHeader
         title="Financeiro"
-        description="Entradas e saídas por igreja — o Dashboard traz os agregados e comparativos"
+        description="Matriz: dízimos na aba Dízimos + outras entradas/saídas aqui. Capelas: entradas e saídas financeiras."
       />
 
-      {userChurches.length === 0 ? (
+      {!matrizChurch && !churchesLoading && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          A paróquia matriz usa o registro com <strong>(Matriz)</strong> no nome para vincular dízimos e lançamentos. Capelas funcionam normalmente abaixo.
+        </div>
+      )}
+
+      {matrizChurch && (
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Matriz</h2>
+          <ChurchFinanceCard
+            church={matrizChurch}
+            title={PARISH_NAME}
+            subtitle="Sede da Quase-Paróquia"
+            variant="matriz"
+            onAdd={openCreate}
+            onEdit={openEdit}
+            onDelete={setDeleteTarget}
+          />
+        </section>
+      )}
+
+      {capelas.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Capelas</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {capelas.map((church) => (
+              <ChurchFinanceCard
+                key={church.id}
+                church={church}
+                variant="capela"
+                onAdd={openCreate}
+                onEdit={openEdit}
+                onDelete={setDeleteTarget}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {!matrizChurch && capelas.length === 0 && !churchesLoading && (
         <EmptyState
           icon={Building2}
-          title="Nenhuma igreja cadastrada"
-          description="Peça ao administrador para cadastrar igrejas na paróquia."
+          title="Nenhuma capela cadastrada"
+          description="Peça ao administrador para cadastrar as capelas da paróquia."
         />
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {userChurches.map((church) => (
-            <ChurchFinanceCard
-              key={church.id}
-              church={church}
-              onAdd={openCreate}
-              onEdit={openEdit}
-              onDelete={setDeleteTarget}
-            />
-          ))}
-        </div>
       )}
 
       <Dialog open={formOpen} onOpenChange={setFormOpen}>

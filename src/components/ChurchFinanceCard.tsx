@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import {
   Building2,
+  Church as ChurchIcon,
   Plus,
   TrendingDown,
   TrendingUp,
@@ -24,12 +25,23 @@ const PREVIEW_COUNT = 4
 
 interface ChurchFinanceCardProps {
   church: Church
+  title?: string
+  subtitle?: string
+  variant?: 'matriz' | 'capela'
   onAdd: (churchId: string, type: FinancialEntryType) => void
   onEdit: (expense: Expense) => void
   onDelete: (expense: Expense) => void
 }
 
-export function ChurchFinanceCard({ church, onAdd, onEdit, onDelete }: ChurchFinanceCardProps) {
+export function ChurchFinanceCard({
+  church,
+  title,
+  subtitle,
+  variant = 'capela',
+  onAdd,
+  onEdit,
+  onDelete,
+}: ChurchFinanceCardProps) {
   const { data: result, isLoading } = useExpenses({ churchId: church.id })
   const [expanded, setExpanded] = useState(false)
 
@@ -48,29 +60,43 @@ export function ChurchFinanceCard({ church, onAdd, onEdit, onDelete }: ChurchFin
   const visibleEntries = expanded ? entries : entries.slice(0, PREVIEW_COUNT)
   const hasMore = entries.length > PREVIEW_COUNT
 
+  const isMatriz = variant === 'matriz'
+  const displayTitle = title ?? church.name
+  const displaySubtitle = subtitle ?? church.address
+  const incomeLabel = isMatriz ? 'Outras entradas' : 'Entradas'
+  const HeaderIcon = isMatriz ? ChurchIcon : Building2
+
   return (
-    <div className="glass-card rounded-2xl overflow-hidden flex flex-col h-full">
-      {/* Header */}
+    <div className={cn('glass-card rounded-2xl overflow-hidden flex flex-col h-full', isMatriz && 'ring-2 ring-primary/30')}>
       <div className="church-gradient px-4 py-3 text-white">
         <div className="flex items-start gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15">
-            <Building2 className="w-5 h-5 text-yellow-300" />
+            <HeaderIcon className="w-5 h-5 text-yellow-300" />
           </div>
           <div className="min-w-0 flex-1">
-            <h3 className="font-semibold text-sm leading-tight truncate">{church.name}</h3>
-            {church.address && (
-              <p className="text-[11px] text-white/60 mt-0.5 truncate">{church.address}</p>
+            {isMatriz && (
+              <p className="text-[10px] text-white/60 uppercase tracking-wider mb-0.5">Quase-Paróquia</p>
+            )}
+            <h3 className="font-semibold text-sm leading-tight truncate">{displayTitle}</h3>
+            {displaySubtitle && (
+              <p className="text-[11px] text-white/60 mt-0.5 truncate">{displaySubtitle}</p>
             )}
           </div>
         </div>
       </div>
+
+      {isMatriz && (
+        <p className="text-[11px] text-muted-foreground px-3 py-2 bg-primary/5 border-b border-border/60">
+          Dízimos são lançados na aba <strong>Dízimos</strong> e entram nos KPIs do Dashboard. Aqui registre outras entradas e saídas.
+        </p>
+      )}
 
       {/* KPIs */}
       <div className="grid grid-cols-3 divide-x divide-border border-b border-border/60 bg-muted/20">
         <div className="px-3 py-2.5 text-center">
           <div className="flex items-center justify-center gap-1 text-green-600 mb-0.5">
             <TrendingUp className="w-3 h-3" />
-            <span className="text-[10px] font-medium uppercase tracking-wide">Entradas</span>
+            <span className="text-[10px] font-medium uppercase tracking-wide">{incomeLabel}</span>
           </div>
           <p className="text-sm font-bold text-green-700">{formatCurrency(totalIncome)}</p>
         </div>
@@ -117,7 +143,7 @@ export function ChurchFinanceCard({ church, onAdd, onEdit, onDelete }: ChurchFin
         ) : entries.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-6 px-4 rounded-xl border-2 border-dashed border-border/80 bg-muted/10">
             <p className="text-xs text-muted-foreground text-center mb-3">
-              Nenhum lançamento nesta igreja
+              {isMatriz ? 'Nenhuma entrada ou saída manual' : 'Nenhum lançamento nesta capela'}
             </p>
             <div className="flex gap-2">
               <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => onAdd(church.id, 'income')}>

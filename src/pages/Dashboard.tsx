@@ -2,11 +2,12 @@ import { useMemo, useState } from 'react'
 import {
   DollarSign, Users, TrendingDown, TrendingUp,
   ChevronDown, ChevronUp, HandCoins,
-  BarChart3, PieChart, Building2, Filter, Cake, ArrowLeftRight,
+  BarChart3, Building2, Filter, Cake, Church,
 } from 'lucide-react'
 import ReactECharts from 'echarts-for-react'
 import { useAuthStore } from '@/stores/auth.store'
-import { useChurches, useActiveChurches, useMatrizChurch } from '@/hooks/use-churches'
+import { useChurches, useMatrizChurch } from '@/hooks/use-churches'
+import { PARISH_NAME, getCapelaChurches, getChurchesForComparison, isMatrizChurch } from '@/lib/churches'
 import { useTithes, useAllDonationsForYear } from '@/hooks/use-tithes'
 import { useAllSummariesForYear, useSummariesForYear } from '@/hooks/use-summaries'
 import { KpiCard } from '@/components/KpiCard'
@@ -56,16 +57,25 @@ const tooltip = {
   },
 }
 
-// ─── Tab: Visão Geral (gestor) ───────────────────────────────────────────────
-function TabOverview({ churchId, summaries, tithes }: {
-  churchId: string
+// ─── Tab: Matriz (KPIs da paróquia) ──────────────────────────────────────────
+function TabMatriz({ matrizChurchId, summaries, tithes }: {
+  matrizChurchId: string
   summaries: ReturnType<typeof useAllSummariesForYear>['data']
   tithes: ReturnType<typeof useTithes>['data']
 }) {
-  const churchSummaries = (summaries ?? []).filter(s => s.churchId === churchId)
+  const { data: expenseResult } = useExpenses({ churchId: matrizChurchId })
+  const entries = expenseResult?.expenses ?? []
+  const churchSummaries = (summaries ?? []).filter(s => s.churchId === matrizChurchId)
+
   const totalDonations = churchSummaries.reduce((a, s) => a + s.totalDonations, 0)
-  const totalExpenses = churchSummaries.reduce((a, s) => a + s.totalExpenses, 0)
-  const balance = totalDonations - totalExpenses
+  const manualIncome = entries
+    .filter(e => (e.type ?? 'expense') === 'income')
+    .reduce((a, e) => a + e.amount, 0)
+  const totalExpenses = entries
+    .filter(e => (e.type ?? 'expense') === 'expense')
+    .reduce((a, e) => a + e.amount, 0)
+  const totalEntradas = totalDonations + manualIncome
+  const balance = totalEntradas - totalExpenses
 
   const upcomingBirthdays = useMemo(() =>
     (tithes ?? []).filter(t => t.birthDate && isBirthdayInNextDays(t.birthDate.toDate())),
@@ -73,37 +83,46 @@ function TabOverview({ churchId, summaries, tithes }: {
 
   const chartData = MONTHS.map((m, idx) => {
     const s = churchSummaries.find(s => s.month === idx + 1)
-    return { month: m.label, donations: (s?.totalDonations ?? 0) / 100, expenses: (s?.totalExpenses ?? 0) / 100 }
+    const monthEntries = entries.filter(e => {
+      const d = e.date.toDate()
+      return d.getFullYear() === CURRENT_YEAR && d.getMonth() === idx
+    })
+    const monthManualIncome = monthEntries
+      .filter(e => (e.type ?? 'expense') === 'income')
+      .reduce((a, e) => a + e.amount, 0) / 100
+    const monthExpenses = monthEntries
+      .filter(e => (e.type ?? 'expense') === 'expense')
+      .reduce((a, e) => a + e.amount, 0) / 100
+    return {
+      month: m.label,
+      donations: (s?.totalDonations ?? 0) / 100,
+      otherIncome: monthManualIncome,
+      expenses: monthExpenses,
+    }
   })
 
   const option = {
     tooltip,
-    legend: { data: ['Dízimos', 'Despesas'], bottom: 0, textStyle: { fontSize: 12 } },
-    color: CHART_COLORS,
+    legend: { data: ['Dízimos', 'Outras entradas', 'Saídas'], bottom: 0, textStyle: { fontSize: 12 } },
+    color: ['#c9a227', '#2e7d32', '#8b1a1a'],
     xAxis: { type: 'category', data: chartData.map(d => d.month), axisLine: { lineStyle: { color: '#ccc' } } },
     yAxis: { type: 'value', axisLabel: { formatter: (v: number) => `R$${(v / 1000).toFixed(0)}k` } },
     series: [
-      {
-        name: 'Dízimos', type: 'bar', data: chartData.map(d => d.donations), barMaxWidth: 28,
-        itemStyle: { borderRadius: [4, 4, 0, 0] },
-        emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(201,162,39,0.5)' } },
-      },
-      {
-        name: 'Despesas', type: 'bar', data: chartData.map(d => d.expenses), barMaxWidth: 28,
-        itemStyle: { borderRadius: [4, 4, 0, 0] },
-        emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(139,26,26,0.5)' } },
-      },
+      { name: 'Dízimos', type: 'bar', data: chartData.map(d => d.donations), barMaxWidth: 24, stack: 'in', itemStyle: { borderRadius: [0, 0, 0, 0] } },
+      { name: 'Outras entradas', type: 'bar', data: chartData.map(d => d.otherIncome), barMaxWidth: 24, stack: 'in', itemStyle: { borderRadius: [4, 4, 0, 0] } },
+      { name: 'Saídas', type: 'bar', data: chartData.map(d => d.expenses), barMaxWidth: 28, itemStyle: { borderRadius: [4, 4, 0, 0] } },
     ],
     grid: { left: '3%', right: '4%', bottom: '15%', containLabel: true },
   }
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <KpiCard title="Total Dízimos" value={formatCurrency(totalDonations)} icon={DollarSign} color="gold" />
-        <KpiCard title="Total Despesas" value={formatCurrency(totalExpenses)} icon={TrendingDown} color="red" />
+      <div className="grid grid-cols-2 xl:grid-cols-5 gap-4">
+        <KpiCard title="Dízimos" value={formatCurrency(totalDonations)} icon={HandCoins} color="gold" />
+        <KpiCard title="Outras entradas" value={formatCurrency(manualIncome)} icon={TrendingUp} color="green" />
+        <KpiCard title="Saídas" value={formatCurrency(totalExpenses)} icon={TrendingDown} color="red" />
         <KpiCard title="Saldo" value={formatCurrency(Math.abs(balance))} subtitle={balance >= 0 ? 'positivo' : 'negativo'} icon={balance >= 0 ? TrendingUp : TrendingDown} color={balance >= 0 ? 'green' : 'red'} />
-        <KpiCard title="Dizimistas Ativos" value={String((tithes ?? []).length)} icon={Users} color="blue" />
+        <KpiCard title="Dizimistas" value={String((tithes ?? []).length)} icon={Users} color="blue" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -120,7 +139,7 @@ function TabOverview({ churchId, summaries, tithes }: {
       </div>
 
       <Card className="glass-card">
-        <CardHeader><CardTitle>Dízimos vs Despesas — {CURRENT_YEAR}</CardTitle></CardHeader>
+        <CardHeader><CardTitle>{PARISH_NAME} — {CURRENT_YEAR}</CardTitle></CardHeader>
         <CardContent>
           <ReactECharts option={option} style={{ height: 300 }} opts={{ renderer: 'svg' }} />
         </CardContent>
@@ -396,95 +415,17 @@ function TabTithes({
   )
 }
 
-// ─── Tab: Despesas ───────────────────────────────────────────────────────────
-function TabExpenses({ churchId }: { churchId: string }) {
-  const { data: result } = useExpenses({ churchId })
-  const { data: summaries = [] } = useSummariesForYear(churchId, CURRENT_YEAR)
-  const expenses = result?.expenses ?? []
-
-  const byCategory = expenses.reduce<Record<string, number>>((acc, e) => {
-    acc[e.category] = (acc[e.category] ?? 0) + e.amount
-    return acc
-  }, {})
-
-  const pieOption = {
-    tooltip: {
-      trigger: 'item',
-      backgroundColor: 'rgba(255,255,255,0.95)',
-      borderColor: '#8b1a1a',
-      formatter: (p: { name: string; value: number; percent: number }) =>
-        `<b>${p.name}</b><br/>${formatCurrency(p.value)}<br/>${p.percent.toFixed(1)}%`,
-    },
-    color: CHART_COLORS,
-    series: [{
-      type: 'pie', radius: ['38%', '68%'],
-      data: Object.entries(byCategory).map(([name, value]) => ({ name, value })),
-      label: { formatter: '{b}\n{d}%', fontSize: 11 },
-      emphasis: { itemStyle: { shadowBlur: 20, shadowColor: 'rgba(0,0,0,0.3)' }, scaleSize: 8 },
-    }],
-  }
-
-  const monthlyOption = {
-    tooltip: {
-      trigger: 'axis',
-      backgroundColor: 'rgba(255,255,255,0.95)',
-      borderColor: '#8b1a1a',
-      formatter: (params: unknown[]) => {
-        const p = params as Array<{ marker: string; seriesName: string; value: number }>
-        return p.map(i => `${i.marker} ${i.seriesName}: <b>${formatCurrency(Math.round(i.value * 100))}</b>`).join('<br/>')
-      },
-    },
-    color: ['#8b1a1a'],
-    xAxis: { type: 'category', data: MONTHS.map(m => m.label) },
-    yAxis: { type: 'value', axisLabel: { formatter: (v: number) => `R$${(v / 1000).toFixed(0)}k` } },
-    series: [{
-      name: 'Despesas', type: 'bar',
-      data: MONTHS.map((_, idx) => (summaries.find(s => s.month === idx + 1)?.totalExpenses ?? 0) / 100),
-      barMaxWidth: 32,
-      itemStyle: { borderRadius: [4, 4, 0, 0], color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: '#c0392b' }, { offset: 1, color: '#8b1a1a' }] } },
-      emphasis: { itemStyle: { shadowBlur: 12, shadowColor: 'rgba(139,26,26,0.5)' } },
-    }],
-    grid: { left: '3%', right: '4%', bottom: '5%', containLabel: true },
-  }
-
-  const totalExp = summaries.reduce((a, s) => a + s.totalExpenses, 0)
-  const totalDon = summaries.reduce((a, s) => a + s.totalDonations, 0)
-
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <KpiCard title="Despesas no mês" value={formatCurrency(summaries.find(s => s.month === CURRENT_MONTH)?.totalExpenses ?? 0)} icon={TrendingDown} color="red" />
-        <KpiCard title="Total no ano" value={formatCurrency(totalExp)} icon={TrendingDown} color="red" />
-        <KpiCard title="Saldo do ano" value={formatCurrency(Math.abs(totalDon - totalExp))} subtitle={(totalDon - totalExp) >= 0 ? 'positivo' : 'negativo'} icon={DollarSign} color={(totalDon - totalExp) >= 0 ? 'green' : 'red'} />
-        <KpiCard title="Categorias" value={String(Object.keys(byCategory).length)} icon={PieChart} color="blue" />
-      </div>
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        <Card className="glass-card">
-          <CardHeader><CardTitle>Despesas por Categoria</CardTitle></CardHeader>
-          <CardContent>
-            {Object.keys(byCategory).length === 0
-              ? <p className="text-sm text-muted-foreground py-8 text-center">Nenhuma despesa registrada.</p>
-              : <ReactECharts option={pieOption} style={{ height: 300 }} opts={{ renderer: 'svg' }} />}
-          </CardContent>
-        </Card>
-        <Card className="glass-card">
-          <CardHeader><CardTitle>Despesas Mensais — {CURRENT_YEAR}</CardTitle></CardHeader>
-          <CardContent>
-            <ReactECharts option={monthlyOption} style={{ height: 300 }} opts={{ renderer: 'svg' }} />
-          </CardContent>
-        </Card>
-      </div>
-    </div>
-  )
-}
-
 // ─── Tab: Igrejas (consolidado com filtros) ──────────────────────────────────
 const YEAR_OPTIONS = Array.from({ length: 5 }, (_, i) => CURRENT_YEAR - i)
 
 function TabChurches({
   churches,
+  mode = 'admin',
+  matrizChurchId,
 }: {
   churches: ReturnType<typeof useChurches>['data']
+  mode?: 'admin' | 'capelas'
+  matrizChurchId?: string
 }) {
   const [filterYear, setFilterYear] = useState(CURRENT_YEAR)
   const [filterMonth, setFilterMonth] = useState('all')
@@ -492,14 +433,31 @@ function TabChurches({
 
   const { data: summaries = [] } = useAllSummariesForYear(filterYear)
 
-  const availableChurches = useMemo(
-    () => (churches ?? []).filter((c) => c.isActive),
+  const activeChurches = useMemo(
+    () => (churches ?? []).filter((c) => c.isActive !== false),
     [churches],
   )
 
-  const selectedChurches = filterChurch === 'all'
-    ? availableChurches
-    : availableChurches.filter((c) => c.id === filterChurch)
+  const capelas = useMemo(() => getCapelaChurches(activeChurches), [activeChurches])
+  const compareChurches = useMemo(
+    () => (mode === 'capelas' ? getChurchesForComparison(activeChurches) : activeChurches),
+    [activeChurches, mode],
+  )
+
+  const filterOptions = mode === 'capelas'
+    ? [{ id: 'all', name: 'Matriz + capelas' }, ...capelas.map((c) => ({ id: c.id, name: c.name }))]
+    : [{ id: 'all', name: 'Todas as igrejas' }, ...activeChurches.map((c) => ({ id: c.id, name: c.name }))]
+
+  const selectedChurches = useMemo(() => {
+    if (filterChurch === 'all') return compareChurches
+    const picked = activeChurches.find((c) => c.id === filterChurch)
+    if (!picked) return compareChurches
+    if (mode === 'capelas') {
+      const matriz = activeChurches.find((c) => c.id === matrizChurchId)
+      if (matriz && !isMatrizChurch(picked)) return [matriz, picked]
+    }
+    return [picked]
+  }, [filterChurch, compareChurches, activeChurches, mode, matrizChurchId])
 
   const filteredSummaries = useMemo(() => {
     const churchIds = new Set(selectedChurches.map((c) => c.id))
@@ -514,7 +472,9 @@ function TabChurches({
     selectedChurches.map((c) => {
       const churchSums = filteredSummaries.filter((s) => s.churchId === c.id)
       const donations = churchSums.reduce((a, s) => a + s.totalDonations, 0)
+      const otherIncome = churchSums.reduce((a, s) => a + (s.totalOtherIncome ?? 0), 0)
       const expenses = churchSums.reduce((a, s) => a + s.totalExpenses, 0)
+      const entradas = donations + otherIncome
       let tithesCount = 0
       if (filterMonth !== 'all') {
         tithesCount = churchSums.find((s) => s.month === Number(filterMonth))?.activeTithesCount ?? 0
@@ -525,18 +485,20 @@ function TabChurches({
       }
       return {
         id: c.id,
-        name: c.name,
+        name: mode === 'capelas' && isMatrizChurch(c) ? PARISH_NAME : c.name,
         donations,
+        otherIncome,
+        entradas,
         expenses,
-        balance: donations - expenses,
+        balance: entradas - expenses,
         tithesCount,
       }
     }),
-  [selectedChurches, filteredSummaries, summaries, filterMonth])
+  [selectedChurches, filteredSummaries, summaries, filterMonth, mode])
 
-  const totalDonations = churchBreakdown.reduce((a, c) => a + c.donations, 0)
+  const totalEntradas = churchBreakdown.reduce((a, c) => a + c.entradas, 0)
   const totalExpenses = churchBreakdown.reduce((a, c) => a + c.expenses, 0)
-  const totalBalance = totalDonations - totalExpenses
+  const totalBalance = totalEntradas - totalExpenses
   const totalTithes = churchBreakdown.reduce((a, c) => a + c.tithesCount, 0)
 
   const periodLabel = filterMonth === 'all'
@@ -544,10 +506,10 @@ function TabChurches({
     : `${MONTHS[Number(filterMonth) - 1]?.label}/${filterYear}`
 
   const scopeLabel = filterChurch === 'all'
-    ? 'Todas as igrejas'
-    : selectedChurches[0]?.name ?? '—'
+    ? (mode === 'capelas' ? 'Matriz + capelas' : 'Todas as igrejas')
+    : selectedChurches.map((c) => (mode === 'capelas' && isMatrizChurch(c) ? PARISH_NAME : c.name)).join(' vs ')
 
-  const showPerChurchChart = filterChurch === 'all' && selectedChurches.length > 1
+  const showPerChurchChart = filterChurch === 'all' ? selectedChurches.length > 1 : selectedChurches.length > 0
 
   const barOption = {
     tooltip: {
@@ -565,7 +527,7 @@ function TabChurches({
     xAxis: { type: 'category', data: churchBreakdown.map((c) => c.name), axisLabel: { interval: 0, rotate: 15 } },
     yAxis: { type: 'value', axisLabel: { formatter: (v: number) => `R$${(v / 1000).toFixed(0)}k` } },
     series: [
-      { name: 'Entradas', type: 'bar', data: churchBreakdown.map((c) => c.donations / 100), barMaxWidth: 28, itemStyle: { borderRadius: [4, 4, 0, 0] } },
+      { name: 'Entradas', type: 'bar', data: churchBreakdown.map((c) => c.entradas / 100), barMaxWidth: 28, itemStyle: { borderRadius: [4, 4, 0, 0] } },
       { name: 'Despesas', type: 'bar', data: churchBreakdown.map((c) => c.expenses / 100), barMaxWidth: 28, itemStyle: { borderRadius: [4, 4, 0, 0] } },
       { name: 'Saldo', type: 'line', data: churchBreakdown.map((c) => c.balance / 100), smooth: true, symbol: 'circle', symbolSize: 8, lineStyle: { width: 2, color: '#2e7d32' } },
     ],
@@ -581,7 +543,7 @@ function TabChurches({
       }
       return {
         month: m.label,
-        donations: monthSums.reduce((a, s) => a + s.totalDonations, 0) / 100,
+        donations: monthSums.reduce((a, s) => a + s.totalDonations + (s.totalOtherIncome ?? 0), 0) / 100,
         expenses: monthSums.reduce((a, s) => a + s.totalExpenses, 0) / 100,
       }
     })
@@ -610,7 +572,7 @@ function TabChurches({
     color: CHART_COLORS,
     series: [{
       type: 'pie', radius: ['35%', '65%'],
-      data: churchBreakdown.filter((c) => c.donations > 0).map((c) => ({ name: c.name, value: c.donations })),
+      data: churchBreakdown.filter((c) => c.entradas > 0).map((c) => ({ name: c.name, value: c.entradas })),
       label: { formatter: '{b}\n{d}%' },
       emphasis: { itemStyle: { shadowBlur: 20, shadowColor: 'rgba(0,0,0,0.25)' }, scaleSize: 8 },
     }],
@@ -648,12 +610,11 @@ function TabChurches({
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label>Igreja</Label>
+                <Label>{mode === 'capelas' ? 'Capela' : 'Igreja'}</Label>
                 <Select value={filterChurch} onValueChange={setFilterChurch}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Todas as igrejas</SelectItem>
-                    {availableChurches.map((c) => (
+                    {filterOptions.map((c) => (
                       <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                     ))}
                   </SelectContent>
@@ -668,10 +629,16 @@ function TabChurches({
       </Card>
 
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <KpiCard title="Entradas (Dízimos)" value={formatCurrency(totalDonations)} icon={HandCoins} color="gold" />
-        <KpiCard title="Despesas" value={formatCurrency(totalExpenses)} icon={TrendingDown} color="red" />
+        <KpiCard title="Entradas" value={formatCurrency(totalEntradas)} icon={HandCoins} color="gold" />
+        <KpiCard title="Saídas" value={formatCurrency(totalExpenses)} icon={TrendingDown} color="red" />
         <KpiCard title="Saldo" value={formatCurrency(Math.abs(totalBalance))} subtitle={totalBalance >= 0 ? 'positivo' : 'negativo'} icon={totalBalance >= 0 ? TrendingUp : TrendingDown} color={totalBalance >= 0 ? 'green' : 'red'} />
-        <KpiCard title="Dizimistas" value={String(totalTithes)} icon={Users} color="blue" subtitle={`${selectedChurches.length} igreja(s)`} />
+        <KpiCard
+          title={mode === 'capelas' ? 'Locais' : 'Dizimistas'}
+          value={mode === 'capelas' ? String(selectedChurches.length) : String(totalTithes)}
+          icon={mode === 'capelas' ? Building2 : Users}
+          color="blue"
+          subtitle={mode === 'capelas' ? 'no comparativo' : `${selectedChurches.length} igreja(s)`}
+        />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -688,7 +655,7 @@ function TabChurches({
         <Card className="glass-card">
           <CardHeader><CardTitle>Participação nas Entradas</CardTitle></CardHeader>
           <CardContent>
-            {churchBreakdown.filter((c) => c.donations > 0).length === 0
+            {churchBreakdown.filter((c) => c.entradas > 0).length === 0
               ? <p className="text-sm text-muted-foreground py-8 text-center">Nenhuma entrada no período.</p>
               : <ReactECharts option={pieOption} style={{ height: 300 }} opts={{ renderer: 'svg' }} />}
           </CardContent>
@@ -716,7 +683,7 @@ function TabChurches({
                   {churchBreakdown.map((c) => (
                     <tr key={c.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
                       <td className="py-2.5 pr-4 font-medium">{c.name}</td>
-                      <td className="py-2.5 pr-4 text-right">{formatCurrency(c.donations)}</td>
+                      <td className="py-2.5 pr-4 text-right">{formatCurrency(c.entradas)}</td>
                       <td className="py-2.5 pr-4 text-right">{formatCurrency(c.expenses)}</td>
                       <td className="py-2.5 pr-4 text-right">
                         <Badge variant={c.balance >= 0 ? 'success' : 'destructive'}>
@@ -729,7 +696,7 @@ function TabChurches({
                   {churchBreakdown.length > 1 && (
                     <tr className="font-semibold bg-muted/20">
                       <td className="py-2.5 pr-4">Total consolidado</td>
-                      <td className="py-2.5 pr-4 text-right">{formatCurrency(totalDonations)}</td>
+                      <td className="py-2.5 pr-4 text-right">{formatCurrency(totalEntradas)}</td>
                       <td className="py-2.5 pr-4 text-right">{formatCurrency(totalExpenses)}</td>
                       <td className="py-2.5 pr-4 text-right">{formatCurrency(Math.abs(totalBalance))}</td>
                       <td className="py-2.5 text-right">{totalTithes}</td>
@@ -750,22 +717,16 @@ export function Dashboard() {
   const { user } = useAuthStore()
   const isAdmin = !!user?.isAdmin
   const { data: allChurches = [] } = useChurches()
-  const { data: activeChurches = [] } = useActiveChurches()
   const { data: matrizChurch } = useMatrizChurch()
   const matrizChurchId = matrizChurch?.id ?? ''
-  const activeChurchId = user?.activeChurchId ?? matrizChurchId ?? activeChurches[0]?.id ?? ''
   const { data: tithes = [] } = useTithes(matrizChurchId)
   const { data: allSummaries = [] } = useAllSummariesForYear(CURRENT_YEAR)
-
-  const activeChurchName = isAdmin
-    ? 'Todas as igrejas'
-    : matrizChurch?.name ?? allChurches.find(c => c.id === activeChurchId)?.name ?? 'Geral'
 
   return (
     <div className="space-y-4">
       <PageHeader
         title="Dashboard"
-        description={`Ano ${CURRENT_YEAR} — ${activeChurchName}`}
+        description={isAdmin ? `Ano ${CURRENT_YEAR} — Todas as igrejas` : `Ano ${CURRENT_YEAR} — Quase-Paróquia`}
       />
 
       {isAdmin ? (
@@ -782,24 +743,20 @@ export function Dashboard() {
           </TabsContent>
         </Tabs>
       ) : (
-        <Tabs defaultValue="overview">
+        <Tabs defaultValue="matriz">
           <TabsList className="flex-wrap h-auto gap-1 mb-2">
-            <TabsTrigger value="overview" className="gap-1.5"><BarChart3 className="w-3.5 h-3.5" />Visão Geral</TabsTrigger>
+            <TabsTrigger value="matriz" className="gap-1.5"><Church className="w-3.5 h-3.5" />Matriz</TabsTrigger>
             <TabsTrigger value="tithes" className="gap-1.5"><HandCoins className="w-3.5 h-3.5" />Dízimos</TabsTrigger>
-            <TabsTrigger value="expenses" className="gap-1.5"><ArrowLeftRight className="w-3.5 h-3.5" />Financeiro</TabsTrigger>
-            <TabsTrigger value="churches" className="gap-1.5"><Building2 className="w-3.5 h-3.5" />Igrejas</TabsTrigger>
+            <TabsTrigger value="capelas" className="gap-1.5"><Building2 className="w-3.5 h-3.5" />Capelas</TabsTrigger>
           </TabsList>
-          <TabsContent value="overview">
-            <TabOverview churchId={activeChurchId} summaries={allSummaries} tithes={tithes} />
+          <TabsContent value="matriz">
+            <TabMatriz matrizChurchId={matrizChurchId} summaries={allSummaries} tithes={tithes} />
           </TabsContent>
           <TabsContent value="tithes">
             <TabTithes churchId={matrizChurchId} tithes={tithes} />
           </TabsContent>
-          <TabsContent value="expenses">
-            <TabExpenses churchId={activeChurchId} />
-          </TabsContent>
-          <TabsContent value="churches">
-            <TabChurches churches={allChurches} />
+          <TabsContent value="capelas">
+            <TabChurches churches={allChurches} mode="capelas" matrizChurchId={matrizChurchId} />
           </TabsContent>
         </Tabs>
       )}

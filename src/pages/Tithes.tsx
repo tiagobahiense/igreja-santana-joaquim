@@ -13,10 +13,10 @@ import { Input } from '@/components/ui/input'
 import { FormField } from '@/components/FormField'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { titheDonorSchema, type TitheDonorFormData } from '@/schemas'
-import { MONTHS, formatCurrency, calculateAge, type MonthKey } from '@/lib/utils'
+import { MONTHS, formatCurrency, calculateAge, cn, type MonthKey } from '@/lib/utils'
 import type { Tithe } from '@/types'
 import { Timestamp } from 'firebase/firestore'
-import { cn } from '@/lib/utils'
+import { PARISH_NAME } from '@/lib/churches'
 
 const CURRENT_YEAR = new Date().getFullYear()
 
@@ -103,7 +103,7 @@ export function Tithes() {
       <EmptyState
         icon={HandCoins}
         title="Igreja matriz não encontrada"
-        description='Cadastre uma igreja com "(Matriz)" no nome ou marque-a como matriz.'
+        description='Cadastre uma igreja com "(Matriz)" no nome para vincular os dízimos ao registro da paróquia.'
       />
     )
   }
@@ -112,7 +112,7 @@ export function Tithes() {
     <div className="space-y-4">
       <PageHeader
         title="Dízimos"
-        description={`Grade ${year} — ${matrizChurch.name}`}
+        description={`Grade ${year} — ${PARISH_NAME}`}
         action={
           <Button onClick={openCreate} className="gap-2 gold-gradient text-white">
             <Plus className="w-4 h-4" />Novo Dizimista

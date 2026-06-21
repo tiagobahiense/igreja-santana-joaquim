@@ -8,14 +8,12 @@ import {
   LogOut,
   Menu,
   X,
-  ChevronDown,
   Shield,
   CalendarDays,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth.store'
 import { useUiStore } from '@/stores/ui.store'
 import { signOut } from '@/services/firebase/auth'
-import { setActiveChurch } from '@/services/firebase/users'
 import { Avatar } from '@/components/Avatar'
 import {
   DropdownMenu,
@@ -25,9 +23,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { useActiveChurches } from '@/hooks/use-churches'
 import { cn } from '@/lib/utils'
-import { toast } from '@/hooks/use-toast'
 
 const adminNavItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -47,9 +43,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, setUser } = useAuthStore()
   const { sidebarOpen, toggleSidebar } = useUiStore()
   const navigate = useNavigate()
-  const { data: userChurches = [] } = useActiveChurches()
-
-  const activeChurch = userChurches.find((c) => c.id === user?.activeChurchId) ?? userChurches[0]
 
   async function handleSignOut() {
     await signOut()
@@ -57,18 +50,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     navigate('/login')
   }
 
-  async function handleSelectChurch(churchId: string) {
-    if (!user) return
-    await setActiveChurch(user.uid, churchId)
-    setUser({ ...user, activeChurchId: churchId })
-    toast({ title: 'Igreja alterada', variant: 'success' } as Parameters<typeof toast>[0])
-  }
-
   const visibleNav = user?.isAdmin ? adminNavItems : managerNavItems
 
   return (
     <div className="min-h-screen flex bg-church-cream">
-      {/* Sidebar */}
       <aside
         className={cn(
           'fixed inset-y-0 left-0 z-40 flex flex-col w-64 church-gradient text-white transition-transform duration-300',
@@ -76,7 +61,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           'lg:translate-x-0 lg:static lg:flex',
         )}
       >
-        {/* Logo area */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
           <div className="flex items-center gap-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/10">
@@ -97,34 +81,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </button>
         </div>
 
-        {/* Church selector (multi-church users) */}
-        {userChurches.length > 1 && (
-          <div className="px-4 py-3 border-b border-white/10">
-            <p className="text-[10px] text-white/50 uppercase tracking-wider mb-1">Igreja ativa</p>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-2 w-full text-sm text-white hover:text-white/80 transition-colors">
-                  <Church className="w-4 h-4 shrink-0 text-yellow-400" />
-                  <span className="truncate">{activeChurch?.name ?? 'Selecionar...'}</span>
-                  <ChevronDown className="w-3 h-3 ml-auto shrink-0" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-56">
-                {userChurches.map((church) => (
-                  <DropdownMenuItem
-                    key={church.id}
-                    onClick={() => handleSelectChurch(church.id)}
-                    className={cn(church.id === activeChurch?.id && 'bg-primary/10 font-medium')}
-                  >
-                    {church.name}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        )}
-
-        {/* Navigation */}
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto scrollbar-thin">
           {visibleNav.map(({ to, icon: Icon, label }) => (
             <NavLink
@@ -146,7 +102,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
 
-        {/* User footer */}
         <div className="px-4 py-3 border-t border-white/10">
           <button
             onClick={handleSignOut}
@@ -158,7 +113,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      {/* Overlay for mobile */}
       {sidebarOpen && (
         <div
           className="fixed inset-0 z-30 bg-black/40 lg:hidden"
@@ -166,9 +120,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         />
       )}
 
-      {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Top header */}
         <header className="sticky top-0 z-20 flex items-center justify-between px-4 md:px-6 py-3 bg-white/70 backdrop-blur-md border-b border-white/50 shadow-sm">
           <button
             onClick={toggleSidebar}
@@ -179,7 +131,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
           <div className="flex-1" />
 
-          {/* Avatar dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="rounded-full ring-2 ring-primary/30 hover:ring-primary/60 transition-all">
@@ -214,7 +165,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </DropdownMenu>
         </header>
 
-        {/* Page content */}
         <main className="flex-1 p-4 md:p-6 lg:p-8 overflow-auto">
           {children}
         </main>
