@@ -69,6 +69,30 @@ export function getMonthLabel(key: MonthKey): string {
   return MONTHS.find((m) => m.key === key)?.label ?? key
 }
 
+export function getDonationTotal(record: Record<string, unknown> | null | undefined): number {
+  if (!record) return 0
+  return MONTHS.reduce((sum, m) => sum + (Number(record[m.key]) || 0), 0)
+}
+
+export function getDonationMonthsCount(record: Record<string, unknown> | null | undefined): number {
+  if (!record) return 0
+  return MONTHS.filter((m) => (Number(record[m.key]) || 0) > 0).length
+}
+
+export function getLastDonationMonth(record: Record<string, unknown> | null | undefined): MonthKey | null {
+  if (!record) return null
+  for (let i = MONTHS.length - 1; i >= 0; i--) {
+    if ((Number(record[MONTHS[i].key]) || 0) > 0) return MONTHS[i].key
+  }
+  return null
+}
+
+export function getCurrentMonthDonation(record: Record<string, unknown> | null | undefined): number {
+  const key = MONTHS[new Date().getMonth()]?.key
+  if (!key || !record) return 0
+  return Number(record[key]) || 0
+}
+
 export function getInitials(name: string): string {
   return name
     .split(' ')

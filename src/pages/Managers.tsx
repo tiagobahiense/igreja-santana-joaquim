@@ -48,10 +48,15 @@ export function Managers() {
       setFormOpen(false)
       reset()
     },
-    onError: (err: Error) => {
-      const msg = err.message.includes('email-already-in-use')
-        ? 'Este e-mail já está em uso'
-        : 'Erro ao criar gestor'
+    onError: (err: unknown) => {
+      const code = (err as { code?: string })?.code ?? ''
+      const msg = code === 'auth/email-already-in-use'
+        ? 'Este e-mail já existe no Auth. Use "Reparar perfil" ou exclua no Firebase Console.'
+        : code === 'permission-denied'
+          ? 'Sem permissão para gravar o perfil. Verifique as regras do Firestore.'
+          : code === 'auth/weak-password'
+            ? 'Senha muito fraca (mínimo 6 caracteres)'
+            : 'Erro ao criar gestor. Tente novamente.'
       toast({ title: msg, variant: 'destructive' })
     },
   })

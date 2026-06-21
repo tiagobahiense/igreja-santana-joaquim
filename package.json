@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "lint": "eslint .",
-    "seed:admin": "node scripts/seed-admin.mjs"
+    "seed:admin": "node scripts/seed-admin.mjs",
+    "repair:manager": "node scripts/repair-manager.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.62.7",

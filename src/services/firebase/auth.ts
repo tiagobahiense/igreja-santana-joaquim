@@ -5,10 +5,11 @@ import {
   EmailAuthProvider,
   reauthenticateWithCredential,
   createUserWithEmailAndPassword,
+  deleteUser,
   type User,
 } from 'firebase/auth'
 import { doc, setDoc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore'
-import { auth, db } from '@/lib/firebase'
+import { auth, db, secondaryAuth } from '@/lib/firebase'
 import type { UserProfile } from '@/types'
 
 export async function signIn(email: string, password: string) {
@@ -31,17 +32,28 @@ export async function createManagerAccount(
   displayName: string,
   churchIds: string[],
 ): Promise<string> {
-  const credential = await createUserWithEmailAndPassword(auth, email, password)
+  const credential = await createUserWithEmailAndPassword(secondaryAuth, email, password)
   const uid = credential.user.uid
-  await setDoc(doc(db, 'users', uid), {
-    email,
-    displayName,
-    isAdmin: false,
-    churchIds,
-    activeChurchId: churchIds[0] ?? null,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  })
+  try {
+    await setDoc(doc(db, 'users', uid), {
+      email,
+      displayName,
+      isAdmin: false,
+      churchIds,
+      activeChurchId: churchIds[0] ?? null,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    })
+  } catch (error) {
+    try {
+      await deleteUser(credential.user)
+    } catch {
+      // Conta pode ficar órfã no Auth — use npm run repair:manager
+    }
+    throw error
+  } finally {
+    await firebaseSignOut(secondaryAuth)
+  }
   return uid
 }
 

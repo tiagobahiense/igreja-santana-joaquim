@@ -7,7 +7,7 @@ import {
 import ReactECharts from 'echarts-for-react'
 import { useAuthStore } from '@/stores/auth.store'
 import { useChurches } from '@/hooks/use-churches'
-import { useTithes } from '@/hooks/use-tithes'
+import { useTithes, useAllDonationsForYear } from '@/hooks/use-tithes'
 import { useAllSummariesForYear, useSummariesForYear } from '@/hooks/use-summaries'
 import { useDailyTasks } from '@/hooks/use-tasks'
 import { KpiCard } from '@/components/KpiCard'
@@ -15,7 +15,7 @@ import { PageHeader } from '@/components/PageHeader'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { formatCurrency, formatDate, isBirthdayInNextDays, MONTHS } from '@/lib/utils'
+import { formatCurrency, formatDate, isBirthdayInNextDays, MONTHS, getDonationTotal, getDonationMonthsCount, getLastDonationMonth, getCurrentMonthDonation, getMonthLabel } from '@/lib/utils'
 import { useUiStore } from '@/stores/ui.store'
 import { useExpenses } from '@/hooks/use-expenses'
 
@@ -385,76 +385,222 @@ function TabComparison({ churches, allSummaries }: {
 }
 
 // ─── Tab: Dizimistas ──────────────────────────────────────────────────────────
-function TabDonors({ churchId, tithes }: { churchId: string; tithes: ReturnType<typeof useTithes>['data'] }) {
-  const { data: summaries = [] } = useSummariesForYear(churchId, CURRENT_YEAR)
+function TabDonors({
+  churchId,
+  tithes,
+  isAdmin,
+  churches,
+  allSummaries,
+}: {
+  churchId: string
+  tithes: ReturnType<typeof useTithes>['data']
+  isAdmin?: boolean
+  churches: ReturnType<typeof useChurches>['data']
+  allSummaries: ReturnType<typeof useAllSummariesForYear>['data']
+}) {
+  const { data: allDonations } = useAllDonationsForYear(churchId, CURRENT_YEAR)
   const donors = tithes ?? []
+  const donationsMap = allDonations ?? new Map()
 
-  const upcomingBirthdays = donors.filter(t => t.birthDate && isBirthdayInNextDays(t.birthDate.toDate(), 30))
-  const withBirthdate = donors.filter(t => !!t.birthDate)
+  const donorStats = useMemo(() =>
+    donors.map((t) => {
+      const record = donationsMap.get(t.id)
+      const total = getDonationTotal(record)
+      const monthsPaid = getDonationMonthsCount(record)
+      return {
+        id: t.id,
+        name: t.fullName,
+        total,
+        monthsPaid,
+        lastMonth: getLastDonationMonth(record),
+        currentMonth: getCurrentMonthDonation(record),
+        avgMonthly: monthsPaid > 0 ? Math.round(total / monthsPaid) : 0,
+      }
+    }).sort((a, b) => b.total - a.total),
+  [donors, donationsMap])
 
-  const monthBirthdays = MONTHS.map((_m, idx) =>
-    donors.filter(t => t.birthDate && t.birthDate.toDate().getMonth() === idx).length
+  const totalArrecadado = donorStats.reduce((a, d) => a + d.total, 0)
+  const donorsThisMonth = donorStats.filter((d) => d.currentMonth > 0).length
+  const avgPerDonor = donors.length > 0 ? Math.round(totalArrecadado / donors.length) : 0
+  const topDonor = donorStats[0]
+
+  const top10 = donorStats.slice(0, 10)
+  const topDonorsOption = {
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      backgroundColor: 'rgba(255,255,255,0.95)',
+      borderColor: '#c9a227',
+      formatter: (params: unknown[]) => {
+        const p = params as Array<{ name: string; value: number }>
+        return `<b>${p[0]?.name}</b><br/>Total: ${formatCurrency(Math.round((p[0]?.value ?? 0) * 100))}`
+      },
+    },
+    grid: { left: '3%', right: '8%', bottom: '3%', top: '3%', containLabel: true },
+    xAxis: { type: 'value', axisLabel: { formatter: (v: number) => `R$${(v / 1000).toFixed(0)}k` } },
+    yAxis: { type: 'category', data: top10.map((d) => d.name).reverse(), axisLabel: { width: 90, overflow: 'truncate' } },
+    series: [{
+      type: 'bar',
+      data: top10.map((d) => d.total / 100).reverse(),
+      barMaxWidth: 22,
+      itemStyle: { borderRadius: [0, 4, 4, 0], color: '#c9a227' },
+      emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(201,162,39,0.5)' } },
+    }],
+  }
+
+  const monthlyParticipation = MONTHS.map((m) =>
+    donors.filter((t) => (Number(donationsMap.get(t.id)?.[m.key]) || 0) > 0).length,
   )
 
-  const birthdayOption = {
+  const participationOption = {
     tooltip: {
       trigger: 'axis',
       backgroundColor: 'rgba(255,255,255,0.95)',
       formatter: (params: unknown[]) => {
         const p = params as Array<{ name: string; value: number }>
-        return `<b>${p[0]?.name}</b>: ${p[0]?.value} aniversariante(s)`
+        return `<b>${p[0]?.name}</b><br/>${p[0]?.value} dizimista(s) contribuíram`
       },
     },
-    color: ['#6a1b9a'],
-    xAxis: { type: 'category', data: MONTHS.map(m => m.label) },
-    yAxis: { type: 'value', minInterval: 1 },
+    color: ['#1a3a5c'],
+    xAxis: { type: 'category', data: MONTHS.map((m) => m.label) },
+    yAxis: { type: 'value', minInterval: 1, name: 'Dizimistas' },
     series: [{
-      name: 'Aniversariantes', type: 'bar', data: monthBirthdays,
-      barMaxWidth: 32, itemStyle: { borderRadius: [4, 4, 0, 0] },
-      emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(106,27,154,0.5)' } },
+      name: 'Contribuintes', type: 'bar', data: monthlyParticipation, barMaxWidth: 32,
+      itemStyle: { borderRadius: [4, 4, 0, 0] },
+      emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(26,58,92,0.4)' } },
     }],
     grid: { left: '3%', right: '4%', bottom: '5%', containLabel: true },
   }
 
-  const avgMonthly = summaries.length > 0
-    ? Math.round(summaries.reduce((a, s) => a + s.totalDonations, 0) / Math.max(summaries.filter(s => s.totalDonations > 0).length, 1) / Math.max(donors.length, 1))
-    : 0
+  const activeChurches = (churches ?? []).filter((c) => c.isActive)
+  const churchComparison = activeChurches.map((c) => {
+    const sums = (allSummaries ?? []).filter((s) => s.churchId === c.id)
+    const total = sums.reduce((a, s) => a + s.totalDonations, 0)
+    const latest = [...sums].sort((a, b) => b.month - a.month)[0]
+    const count = latest?.activeTithesCount ?? 0
+    return { name: c.name, total, count, avg: count > 0 ? Math.round(total / count) : 0 }
+  })
+
+  const churchCompareOption = {
+    tooltip: {
+      trigger: 'axis',
+      backgroundColor: 'rgba(255,255,255,0.95)',
+      borderColor: '#c9a227',
+      formatter: (params: unknown[]) => {
+        const p = params as Array<{ marker: string; seriesName: string; value: number; axisValue: string }>
+        const header = `<b>${p[0]?.axisValue}</b><br/>`
+        return header + p.map((i) => {
+          if (i.seriesName === 'Dizimistas') return `${i.marker} ${i.seriesName}: <b>${i.value}</b>`
+          return `${i.marker} ${i.seriesName}: <b>${formatCurrency(Math.round(i.value * 100))}</b>`
+        }).join('<br/>')
+      },
+    },
+    legend: { data: ['Total arrecadado', 'Dizimistas', 'Média/dizimista'], bottom: 0 },
+    color: ['#c9a227', '#1a3a5c', '#2e7d32'],
+    xAxis: { type: 'category', data: churchComparison.map((c) => c.name), axisLabel: { interval: 0, rotate: 15 } },
+    yAxis: [
+      { type: 'value', name: 'R$', axisLabel: { formatter: (v: number) => `R$${(v / 1000).toFixed(0)}k` } },
+      { type: 'value', name: 'Qtd', minInterval: 1 },
+    ],
+    series: [
+      { name: 'Total arrecadado', type: 'bar', data: churchComparison.map((c) => c.total / 100), barMaxWidth: 24, itemStyle: { borderRadius: [4, 4, 0, 0] } },
+      { name: 'Dizimistas', type: 'bar', yAxisIndex: 1, data: churchComparison.map((c) => c.count), barMaxWidth: 24, itemStyle: { borderRadius: [4, 4, 0, 0] } },
+      { name: 'Média/dizimista', type: 'line', data: churchComparison.map((c) => c.avg / 100), smooth: true, symbol: 'circle', symbolSize: 7 },
+    ],
+    grid: { left: '3%', right: '4%', bottom: '18%', containLabel: true },
+  }
+
+  if (!churchId) {
+    return (
+      <div className="space-y-4">
+        {isAdmin && activeChurches.length > 0 ? (
+          <Card className="glass-card">
+            <CardHeader><CardTitle>Comparativo de Dizimistas entre Igrejas — {CURRENT_YEAR}</CardTitle></CardHeader>
+            <CardContent>
+              <ReactECharts option={churchCompareOption} style={{ height: 320 }} opts={{ renderer: 'svg' }} />
+            </CardContent>
+          </Card>
+        ) : (
+          <p className="text-sm text-muted-foreground py-8 text-center">Selecione uma igreja para ver os dizimistas.</p>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         <KpiCard title="Total dizimistas" value={String(donors.length)} icon={Users} color="blue" />
-        <KpiCard title="Com data de nasc." value={String(withBirthdate.length)} icon={UserCheck} color="gold" />
-        <KpiCard title="Aniversários (30 dias)" value={String(upcomingBirthdays.length)} icon={UserCheck} color="green" />
-        <KpiCard title="Média doação/pessoa" value={formatCurrency(avgMonthly)} subtitle="por mês" icon={HandCoins} color="gold" />
+        <KpiCard title="Arrecadado no ano" value={formatCurrency(totalArrecadado)} icon={HandCoins} color="gold" />
+        <KpiCard title="Contribuíram este mês" value={String(donorsThisMonth)} subtitle={`de ${donors.length}`} icon={UserCheck} color="green" />
+        <KpiCard title="Média por dizimista" value={formatCurrency(avgPerDonor)} subtitle={topDonor ? `maior: ${topDonor.name.split(' ')[0]}` : undefined} icon={DollarSign} color="gold" />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <Card className="glass-card">
-          <CardHeader><CardTitle>Aniversários por Mês</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Top 10 Dizimistas — {CURRENT_YEAR}</CardTitle></CardHeader>
           <CardContent>
-            <ReactECharts option={birthdayOption} style={{ height: 260 }} opts={{ renderer: 'svg' }} />
+            {top10.length === 0
+              ? <p className="text-sm text-muted-foreground py-8 text-center">Nenhuma contribuição registrada.</p>
+              : <ReactECharts option={topDonorsOption} style={{ height: 300 }} opts={{ renderer: 'svg' }} />}
           </CardContent>
         </Card>
-
         <Card className="glass-card">
-          <CardHeader><CardTitle>Próximos Aniversários (30 dias)</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Contribuintes por Mês</CardTitle></CardHeader>
           <CardContent>
-            {upcomingBirthdays.length === 0
-              ? <p className="text-sm text-muted-foreground py-8 text-center">Nenhum aniversariante nos próximos 30 dias.</p>
-              : (
-                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                  {upcomingBirthdays.map(t => (
-                    <div key={t.id} className="flex items-center justify-between text-sm p-2 rounded-lg bg-purple-50 border border-purple-100">
-                      <span className="font-medium">{t.fullName}</span>
-                      <span className="text-muted-foreground">{formatDate(t.birthDate?.toDate())}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
+            <ReactECharts option={participationOption} style={{ height: 300 }} opts={{ renderer: 'svg' }} />
           </CardContent>
         </Card>
       </div>
+
+      <Card className="glass-card">
+        <CardHeader><CardTitle>Detalhamento por Dizimista</CardTitle></CardHeader>
+        <CardContent>
+          {donorStats.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">Nenhum dizimista cadastrado.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left text-muted-foreground">
+                    <th className="pb-2 pr-4 font-medium">Nome</th>
+                    <th className="pb-2 pr-4 font-medium text-right">Total {CURRENT_YEAR}</th>
+                    <th className="pb-2 pr-4 font-medium text-right">Meses c/ doação</th>
+                    <th className="pb-2 pr-4 font-medium text-right">Último mês</th>
+                    <th className="pb-2 pr-4 font-medium text-right">Média/mês</th>
+                    <th className="pb-2 font-medium text-right">Este mês</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {donorStats.map((d) => (
+                    <tr key={d.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
+                      <td className="py-2.5 pr-4 font-medium">{d.name}</td>
+                      <td className="py-2.5 pr-4 text-right">{formatCurrency(d.total)}</td>
+                      <td className="py-2.5 pr-4 text-right">{d.monthsPaid}</td>
+                      <td className="py-2.5 pr-4 text-right">{d.lastMonth ? getMonthLabel(d.lastMonth) : '—'}</td>
+                      <td className="py-2.5 pr-4 text-right">{formatCurrency(d.avgMonthly)}</td>
+                      <td className="py-2.5 text-right">
+                        {d.currentMonth > 0
+                          ? <Badge variant="gold">{formatCurrency(d.currentMonth)}</Badge>
+                          : <span className="text-muted-foreground">—</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {isAdmin && activeChurches.length > 1 && (
+        <Card className="glass-card">
+          <CardHeader><CardTitle>Comparativo entre Igrejas</CardTitle></CardHeader>
+          <CardContent>
+            <ReactECharts option={churchCompareOption} style={{ height: 320 }} opts={{ renderer: 'svg' }} />
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }
@@ -504,7 +650,13 @@ export function Dashboard() {
         )}
 
         <TabsContent value="donors">
-          <TabDonors churchId={activeChurchId} tithes={tithes} />
+          <TabDonors
+            churchId={activeChurchId}
+            tithes={tithes}
+            isAdmin={!!user?.isAdmin}
+            churches={allChurches}
+            allSummaries={allSummaries}
+          />
         </TabsContent>
       </Tabs>
     </div>

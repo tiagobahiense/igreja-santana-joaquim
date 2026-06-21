@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Eye, EyeOff, LogIn } from 'lucide-react'
 import { motion } from 'motion/react'
-import { signIn, getUserProfile } from '@/services/firebase/auth'
+import { signIn, getUserProfile, signOut } from '@/services/firebase/auth'
 import { useAuthStore } from '@/stores/auth.store'
 import { loginSchema, type LoginFormData } from '@/schemas'
 import { Button } from '@/components/ui/button'
@@ -33,9 +33,15 @@ export function Login() {
       setUser(profile)
       navigate('/dashboard')
     } catch (err: unknown) {
-      const msg = err instanceof Error && err.message.includes('invalid-credential')
+      const code = (err as { code?: string })?.code ?? ''
+      const msg = code === 'auth/invalid-credential' || code === 'auth/wrong-password'
         ? 'E-mail ou senha incorretos'
-        : 'Erro ao entrar. Verifique suas credenciais.'
+        : err instanceof Error && err.message === 'Perfil não encontrado'
+          ? 'Conta sem perfil cadastrado. Peça ao administrador para concluir o cadastro.'
+          : 'Erro ao entrar. Verifique suas credenciais.'
+      if (err instanceof Error && err.message === 'Perfil não encontrado') {
+        await signOut()
+      }
       toast({ title: msg, variant: 'destructive' })
     } finally {
       setLoading(false)
