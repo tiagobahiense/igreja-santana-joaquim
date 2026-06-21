@@ -23,7 +23,7 @@ function stripUndefined<T extends Record<string, unknown>>(obj: T): Partial<T> {
 }
 
 export async function getNextExternalId(churchId: string): Promise<string> {
-  const all = await getTithes(churchId, true)
+  const all = await getTithes(churchId, 'all')
   const nums = all
     .map((t) => t.externalId?.match(/^DZ-(\d+)$/)?.[1])
     .filter(Boolean)
@@ -32,12 +32,16 @@ export async function getNextExternalId(churchId: string): Promise<string> {
   return `DZ-${String(next).padStart(4, '0')}`
 }
 
-export async function getTithes(churchId: string, includeInactive = false): Promise<Tithe[]> {
+export type TitheListMode = 'active' | 'inactive' | 'all'
+
+export async function getTithes(churchId: string, mode: TitheListMode = 'active'): Promise<Tithe[]> {
   const q = query(col(), where('churchId', '==', churchId))
   const snap = await getDocs(q)
   let tithes = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Tithe)
-  if (!includeInactive) {
+  if (mode === 'active') {
     tithes = tithes.filter((t) => t.isActive !== false)
+  } else if (mode === 'inactive') {
+    tithes = tithes.filter((t) => t.isActive === false)
   }
   return tithes.sort((a, b) => a.fullName.localeCompare(b.fullName, 'pt-BR'))
 }
@@ -91,6 +95,17 @@ export async function hardDeleteTithe(id: string) {
   const donationsSnap = await getDocs(collection(db, 'tithes', id, 'donations'))
   await Promise.all(donationsSnap.docs.map((d) => deleteDoc(d.ref)))
   await deleteDoc(doc(db, 'tithes', id))
+}
+
+/** Apaga todos os dizimistas da igreja (uso em testes). */
+export async function hardDeleteAllTithes(churchId: string, year = new Date().getFullYear()): Promise<number> {
+  const all = await getTithes(churchId, 'all')
+  const chunkSize = 20
+  for (let i = 0; i < all.length; i += chunkSize) {
+    await Promise.all(all.slice(i, i + chunkSize).map((t) => hardDeleteTithe(t.id)))
+  }
+  await Promise.all(MONTHS.map((_, idx) => updateSummary(churchId, year, idx + 1)))
+  return all.length
 }
 
 export async function transferTithe(id: string, newChurchId: string, fromChurchId: string) {
@@ -157,7 +172,7 @@ export async function importTithesFromCsv(
   rows: ImportTitheRow[],
   createdBy?: string,
 ): Promise<ImportTithesResult> {
-  const existing = await getTithes(churchId, true)
+  const existing = await getTithes(churchId, 'all')
   const byName = new Map(existing.map((t) => [normalizeName(t.fullName), t]))
 
   let created = 0

@@ -11,14 +11,16 @@ import {
   softDeleteTithe,
   restoreTithe,
   hardDeleteTithe,
+  hardDeleteAllTithes,
+  type TitheListMode,
 } from '@/services/firebase/tithes'
 import { toast } from '@/hooks/use-toast'
 import type { MonthKey } from '@/lib/utils'
 
-export function useTithes(churchId: string, includeInactive = false) {
+export function useTithes(churchId: string, mode: TitheListMode = 'active') {
   return useQuery({
-    queryKey: ['tithes', churchId, { includeInactive }],
-    queryFn: () => getTithes(churchId, includeInactive),
+    queryKey: ['tithes', churchId, { mode }],
+    queryFn: () => getTithes(churchId, mode),
     enabled: !!churchId,
     staleTime: 1000 * 60 * 3,
   })
@@ -172,5 +174,24 @@ export function useHardDeleteTithe() {
       toast({ title: 'Dizimista excluído permanentemente', variant: 'success' } as Parameters<typeof toast>[0])
     },
     onError: () => toast({ title: 'Erro ao excluir', variant: 'destructive' }),
+  })
+}
+
+export function useHardDeleteAllTithes() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ churchId, year }: { churchId: string; year?: number }) =>
+      hardDeleteAllTithes(churchId, year),
+    onSuccess: (count, variables) => {
+      qc.invalidateQueries({ queryKey: ['tithes'] })
+      qc.invalidateQueries({ queryKey: ['all-donations', variables.churchId] })
+      qc.invalidateQueries({ queryKey: ['summaries'] })
+      toast({
+        title: 'Todos os dizimistas foram apagados',
+        description: `${count} registro(s) removido(s).`,
+        variant: 'success',
+      } as Parameters<typeof toast>[0])
+    },
+    onError: () => toast({ title: 'Erro ao apagar todos', variant: 'destructive' }),
   })
 }

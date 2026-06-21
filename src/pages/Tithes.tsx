@@ -1,11 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { Plus, HandCoins, Search, Pencil, Upload, Filter, Trash2, RotateCcw } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useAuthStore } from '@/stores/auth.store'
 import {
   useTithes, useCreateTithe, useUpdateTithe, useSetDonation, useAllDonationsForYear,
-  useSoftDeleteTithe, useRestoreTithe, useHardDeleteTithe,
+  useSoftDeleteTithe, useRestoreTithe, useHardDeleteTithe, useHardDeleteAllTithes,
 } from '@/hooks/use-tithes'
 import { useMatrizChurch } from '@/hooks/use-churches'
 import { PageHeader } from '@/components/PageHeader'
@@ -56,8 +56,25 @@ export function Tithes() {
   const [softDeleteTarget, setSoftDeleteTarget] = useState<Tithe | null>(null)
   const [hardDeleteTarget, setHardDeleteTarget] = useState<Tithe | null>(null)
   const [hardDeleteConfirm, setHardDeleteConfirm] = useState('')
+  const [deleteAllOpen, setDeleteAllOpen] = useState(false)
+  const [deleteAllConfirm, setDeleteAllConfirm] = useState('')
 
-  const { data: tithes = [], isLoading: tithesLoading } = useTithes(matrizChurchId, showInactive)
+  const { data: allTithes = [], isLoading: tithesLoading } = useTithes(matrizChurchId, 'all')
+  const inactiveCount = useMemo(
+    () => allTithes.filter((t) => t.isActive === false).length,
+    [allTithes],
+  )
+  const tithes = useMemo(
+    () => showInactive
+      ? allTithes.filter((t) => t.isActive === false)
+      : allTithes.filter((t) => t.isActive !== false),
+    [allTithes, showInactive],
+  )
+  const activeCount = allTithes.length - inactiveCount
+
+  useEffect(() => {
+    if (showInactive && inactiveCount === 0) setShowInactive(false)
+  }, [showInactive, inactiveCount])
   const { data: allDonations } = useAllDonationsForYear(matrizChurchId, CURRENT_YEAR)
   const createTithe = useCreateTithe()
   const updateTithe = useUpdateTithe()
@@ -65,6 +82,7 @@ export function Tithes() {
   const softDelete = useSoftDeleteTithe()
   const restore = useRestoreTithe()
   const hardDelete = useHardDeleteTithe()
+  const hardDeleteAll = useHardDeleteAllTithes()
 
   const [search, setSearch] = useState('')
   const [searchMode, setSearchMode] = useState<TitheSearchMode>('all')
@@ -171,9 +189,19 @@ export function Tithes() {
     <div className="space-y-4">
       <PageHeader
         title="Dízimos"
-        description={`Grade ${year} — ${PARISH_NAME} · ${tithes.length} dizimista(s) · Total ${formatCurrency(grandTotal)}`}
+        description={`Grade ${year} — ${PARISH_NAME} · ${showInactive ? `${inactiveCount} inativo(s)` : `${activeCount} dizimista(s)`} · Total ${formatCurrency(grandTotal)}`}
         action={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2 justify-end">
+            {import.meta.env.DEV && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => { setDeleteAllOpen(true); setDeleteAllConfirm('') }}
+                className="gap-2"
+              >
+                <Trash2 className="w-4 h-4" />Apagar todos (teste)
+              </Button>
+            )}
             <Button variant="outline" onClick={() => setImportOpen(true)} className="gap-2">
               <Upload className="w-4 h-4" />Importar CSV
             </Button>
@@ -250,23 +278,33 @@ export function Tithes() {
           </Button>
         )}
 
-        <Button
-          variant={showInactive ? 'secondary' : 'outline'}
-          size="sm"
-          onClick={() => setShowInactive((v) => !v)}
-        >
-          {showInactive ? 'Ocultar inativos' : 'Ver inativos'}
-        </Button>
+        {inactiveCount > 0 && (
+          <Button
+            variant={showInactive ? 'secondary' : 'outline'}
+            size="sm"
+            onClick={() => setShowInactive((v) => !v)}
+          >
+            {showInactive ? 'Ver ativos' : `Ver inativos (${inactiveCount})`}
+          </Button>
+        )}
       </div>
 
       {filtered.length === 0 ? (
         <EmptyState
           icon={HandCoins}
-          title={tithes.length === 0 ? 'Nenhum dizimista cadastrado' : 'Nenhum resultado para os filtros'}
+          title={
+            showInactive
+              ? 'Nenhum dizimista inativo'
+              : tithes.length === 0
+                ? 'Nenhum dizimista cadastrado'
+                : 'Nenhum resultado para os filtros'
+          }
           action={
-            tithes.length === 0
+            !showInactive && tithes.length === 0
               ? <Button onClick={openCreate}>Cadastrar dizimista</Button>
-              : undefined
+              : showInactive
+                ? <Button variant="outline" onClick={() => setShowInactive(false)}>Ver dizimistas ativos</Button>
+                : undefined
           }
         />
       ) : (
@@ -303,8 +341,13 @@ export function Tithes() {
                       {tithe.externalId ?? '—'}
                     </td>
                     <td className="px-4 py-2 sticky left-[72px] bg-white/80 backdrop-blur-sm">
-                      <div className="flex items-center gap-1.5">
-                        <p className="font-medium truncate max-w-[140px]">{tithe.fullName}</p>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <p
+                          className="font-medium truncate max-w-[140px] cursor-default"
+                          title={tithe.fullName}
+                        >
+                          {tithe.fullName}
+                        </p>
                         {inactive && <Badge variant="warning" className="text-[10px] px-1 py-0">Inativo</Badge>}
                       </div>
                       <div className="flex flex-wrap items-center gap-1 mt-0.5">
@@ -372,7 +415,7 @@ export function Tithes() {
             <tfoot>
               <tr className="border-t-2 border-primary/20 bg-primary/5 font-semibold">
                 <td className="px-3 py-3 sticky left-0 bg-primary/5 text-xs" colSpan={2}>
-                  Saldo ({filtered.length} de {tithes.length})
+                  Saldo ({filtered.length} de {showInactive ? inactiveCount : activeCount})
                 </td>
                 {MONTHS.map((m) => (
                   <td key={m.key} className="px-2 py-3 text-center text-xs text-primary">
@@ -469,6 +512,42 @@ export function Tithes() {
               }}
             >
               Excluir para sempre
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={deleteAllOpen} onOpenChange={setDeleteAllOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Apagar TODOS os dizimistas?</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              <p>
+                Ação de <strong>teste</strong>: remove permanentemente <strong>{allTithes.length}</strong> registro(s)
+                e todo o histórico de dízimos. Não há como desfazer.
+              </p>
+              <p>Digite <strong>APAGAR TODOS</strong> para confirmar:</p>
+              <Input
+                value={deleteAllConfirm}
+                onChange={(e) => setDeleteAllConfirm(e.target.value)}
+                placeholder="APAGAR TODOS"
+              />
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteAllConfirm('')}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              disabled={deleteAllConfirm !== 'APAGAR TODOS' || hardDeleteAll.isPending}
+              onClick={async () => {
+                if (!matrizChurchId || deleteAllConfirm !== 'APAGAR TODOS') return
+                await hardDeleteAll.mutateAsync({ churchId: matrizChurchId, year })
+                setDeleteAllOpen(false)
+                setDeleteAllConfirm('')
+                setShowInactive(false)
+              }}
+            >
+              {hardDeleteAll.isPending ? 'Apagando…' : 'Apagar todos permanentemente'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
