@@ -8,7 +8,6 @@ import {
   serverTimestamp,
   query,
   where,
-  orderBy,
   setDoc,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
@@ -19,11 +18,13 @@ import { updateSummary } from './summaries'
 const col = () => collection(db, 'tithes')
 
 export async function getTithes(churchId: string, includeInactive = false): Promise<Tithe[]> {
-  const conditions = [where('churchId', '==', churchId)]
-  if (!includeInactive) conditions.push(where('isActive', '==', true))
-  const q = query(col(), ...conditions, orderBy('fullName'))
+  const q = query(col(), where('churchId', '==', churchId))
   const snap = await getDocs(q)
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Tithe)
+  let tithes = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Tithe)
+  if (!includeInactive) {
+    tithes = tithes.filter((t) => t.isActive !== false)
+  }
+  return tithes.sort((a, b) => a.fullName.localeCompare(b.fullName, 'pt-BR'))
 }
 
 export async function createTithe(data: {
