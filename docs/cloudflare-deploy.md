@@ -16,10 +16,10 @@ Se preferir configurar só no Cloudflare, adicione em **Settings → Environment
 | Variável | Exemplo |
 |----------|---------|
 | `VITE_FIREBASE_API_KEY` | valor do Firebase Console (`AIzaSy...`) |
-| `VITE_FIREBASE_AUTH_DOMAIN` | `igreja-santana-joaquim.firebaseapp.com` |
-| `VITE_FIREBASE_PROJECT_ID` | `igreja-santana-joaquim` |
-| `VITE_FIREBASE_MESSAGING_SENDER_ID` | `936127307094` |
-| `VITE_FIREBASE_APP_ID` | `1:936127307094:web:...` |
+| `VITE_FIREBASE_AUTH_DOMAIN` | `igreja-santana-joaquim-77097.firebaseapp.com` |
+| `VITE_FIREBASE_PROJECT_ID` | `igreja-santana-joaquim-77097` |
+| `VITE_FIREBASE_MESSAGING_SENDER_ID` | `719058029987` |
+| `VITE_FIREBASE_APP_ID` | `1:719058029987:web:ab7772bbf63069eab85e16` |
 
 **Atenção:** no Cloudflare, marque as variáveis para o ambiente **Production** e faça rebuild após salvar. Se ainda assim não entrarem no bundle, use a opção A.
 
