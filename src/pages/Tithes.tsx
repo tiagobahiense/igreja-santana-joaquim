@@ -489,16 +489,19 @@ export function Tithes() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir permanentemente?</AlertDialogTitle>
-            <AlertDialogDescription className="space-y-3">
-              <p>Esta ação <strong>não pode ser desfeita</strong>. Todos os dízimos de <strong>{hardDeleteTarget?.fullName}</strong> serão apagados.</p>
-              <p>Digite o nome completo para confirmar:</p>
-              <Input
-                value={hardDeleteConfirm}
-                onChange={(e) => setHardDeleteConfirm(e.target.value)}
-                placeholder={hardDeleteTarget?.fullName}
-              />
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita. Todos os dízimos de{' '}
+              <strong>{hardDeleteTarget?.fullName}</strong> serão apagados.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="space-y-2">
+            <Label className="text-sm text-muted-foreground">Digite o nome completo para confirmar:</Label>
+            <Input
+              value={hardDeleteConfirm}
+              onChange={(e) => setHardDeleteConfirm(e.target.value)}
+              placeholder={hardDeleteTarget?.fullName}
+            />
+          </div>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setHardDeleteConfirm('')}>Cancelar</AlertDialogCancel>
             <AlertDialogAction
@@ -521,19 +524,21 @@ export function Tithes() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Apagar TODOS os dizimistas?</AlertDialogTitle>
-            <AlertDialogDescription className="space-y-3">
-              <p>
-                Ação de <strong>teste</strong>: remove permanentemente <strong>{allTithes.length}</strong> registro(s)
-                e todo o histórico de dízimos. Não há como desfazer.
-              </p>
-              <p>Digite <strong>APAGAR TODOS</strong> para confirmar:</p>
-              <Input
-                value={deleteAllConfirm}
-                onChange={(e) => setDeleteAllConfirm(e.target.value)}
-                placeholder="APAGAR TODOS"
-              />
+            <AlertDialogDescription>
+              Ação de teste: remove permanentemente <strong>{allTithes.length}</strong> registro(s)
+              e todo o histórico de dízimos. Não há como desfazer.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="space-y-2">
+            <Label className="text-sm text-muted-foreground">
+              Digite <strong>APAGAR TODOS</strong> para confirmar:
+            </Label>
+            <Input
+              value={deleteAllConfirm}
+              onChange={(e) => setDeleteAllConfirm(e.target.value)}
+              placeholder="APAGAR TODOS"
+            />
+          </div>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setDeleteAllConfirm('')}>Cancelar</AlertDialogCancel>
             <AlertDialogAction
