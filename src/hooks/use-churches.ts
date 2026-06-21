@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { findMatrizChurch, getCapelaChurches } from '@/lib/churches'
-import { getChurches, createChurch, updateChurch, softDeleteChurch, hardDeleteChurch, restoreChurch } from '@/services/firebase/churches'
+import { getCapelaChurches } from '@/lib/churches'
+import { getChurches, resolveMatrizChurch, createChurch, updateChurch, softDeleteChurch, hardDeleteChurch, restoreChurch } from '@/services/firebase/churches'
 import { toast } from '@/hooks/use-toast'
 import { addLog } from '@/services/firebase/logs'
 import { useAuthStore } from '@/stores/auth.store'
@@ -22,11 +22,11 @@ export function useActiveChurches() {
 }
 
 export function useMatrizChurch() {
-  const query = useActiveChurches()
-  return {
-    ...query,
-    data: findMatrizChurch(query.data ?? []),
-  }
+  return useQuery({
+    queryKey: ['matriz-church'],
+    queryFn: resolveMatrizChurch,
+    staleTime: 1000 * 60 * 5,
+  })
 }
 
 export function useCapelaChurches() {

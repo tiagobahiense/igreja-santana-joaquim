@@ -10,9 +10,11 @@ import {
   query,
   where,
   orderBy,
+  limit,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import type { Church } from '@/types'
+import { findMatrizChurch } from '@/lib/churches'
 
 const col = () => collection(db, 'churches')
 
@@ -27,6 +29,22 @@ export async function getChurch(id: string): Promise<Church | null> {
   const snap = await getDoc(doc(db, 'churches', id))
   if (!snap.exists()) return null
   return { id: snap.id, ...snap.data() } as Church
+}
+
+export async function resolveMatrizChurch(): Promise<Church | null> {
+  const churches = await getChurches(true)
+  const found = findMatrizChurch(churches)
+  if (found) return found
+
+  const tithesSnap = await getDocs(
+    query(collection(db, 'tithes'), where('isActive', '==', true), limit(1)),
+  )
+  if (!tithesSnap.empty) {
+    const churchId = tithesSnap.docs[0].data().churchId as string
+    return churches.find((c) => c.id === churchId) ?? await getChurch(churchId)
+  }
+
+  return null
 }
 
 export async function createChurch(data: { name: string; address?: string }): Promise<string> {

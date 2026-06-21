@@ -63,7 +63,7 @@ function TabMatriz({ matrizChurchId, summaries, tithes }: {
   summaries: ReturnType<typeof useAllSummariesForYear>['data']
   tithes: ReturnType<typeof useTithes>['data']
 }) {
-  const { data: expenseResult } = useExpenses({ churchId: matrizChurchId })
+  const { data: expenseResult } = useExpenses({ churchId: matrizChurchId || undefined })
   const entries = expenseResult?.expenses ?? []
   const churchSummaries = (summaries ?? []).filter(s => s.churchId === matrizChurchId)
 
@@ -335,7 +335,23 @@ function TabTithes({
 
   if (!churchId) {
     return (
-      <p className="text-sm text-muted-foreground py-8 text-center">Selecione uma igreja para ver dízimos e dizimistas.</p>
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+          <KpiCard title="Arrecadado no mês" value={formatCurrency(0)} icon={HandCoins} color="gold" />
+          <KpiCard title="Acumulado no ano" value={formatCurrency(0)} icon={TrendingUp} color="green" />
+          <KpiCard title="Dizimistas ativos" value="0" icon={Users} color="blue" />
+          <KpiCard title="Média por dizimista" value={formatCurrency(0)} icon={DollarSign} color="gold" />
+        </div>
+        <Card className="glass-card">
+          <CardHeader><CardTitle>Evolução dos Dízimos — {CURRENT_YEAR}</CardTitle></CardHeader>
+          <CardContent>
+            <ReactECharts option={lineOption} style={{ height: 320 }} opts={{ renderer: 'svg' }} />
+          </CardContent>
+        </Card>
+        <p className="text-sm text-muted-foreground text-center py-2">
+          Cadastre dizimistas na aba <strong>Dízimos</strong> para começar a registrar contribuições da {PARISH_NAME}.
+        </p>
+      </div>
     )
   }
 
@@ -717,10 +733,12 @@ export function Dashboard() {
   const { user } = useAuthStore()
   const isAdmin = !!user?.isAdmin
   const { data: allChurches = [] } = useChurches()
-  const { data: matrizChurch } = useMatrizChurch()
+  const { data: matrizChurch, isLoading: matrizLoading } = useMatrizChurch()
   const matrizChurchId = matrizChurch?.id ?? ''
-  const { data: tithes = [] } = useTithes(matrizChurchId)
+  const { data: tithes = [], isLoading: tithesLoading } = useTithes(matrizChurchId)
   const { data: allSummaries = [] } = useAllSummariesForYear(CURRENT_YEAR)
+
+  const managerLoading = !isAdmin && (matrizLoading || (matrizChurchId !== '' && tithesLoading))
 
   return (
     <div className="space-y-4">
@@ -729,7 +747,9 @@ export function Dashboard() {
         description={isAdmin ? `Ano ${CURRENT_YEAR} — Todas as igrejas` : `Ano ${CURRENT_YEAR} — Quase-Paróquia`}
       />
 
-      {isAdmin ? (
+      {managerLoading ? (
+        <div className="p-8 text-center text-muted-foreground">Carregando dados da paróquia...</div>
+      ) : isAdmin ? (
         <Tabs defaultValue="overview">
           <TabsList className="flex-wrap h-auto gap-1 mb-2">
             <TabsTrigger value="overview" className="gap-1.5"><BarChart3 className="w-3.5 h-3.5" />Visão Geral</TabsTrigger>

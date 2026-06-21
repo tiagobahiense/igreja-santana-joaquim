@@ -25,7 +25,7 @@ export function Tithes() {
   const { data: matrizChurch, isLoading: matrizLoading } = useMatrizChurch()
   const matrizChurchId = matrizChurch?.id ?? ''
 
-  const { data: tithes = [], isLoading } = useTithes(matrizChurchId)
+  const { data: tithes = [], isLoading: tithesLoading } = useTithes(matrizChurchId)
   const { data: allDonations } = useAllDonationsForYear(matrizChurchId, CURRENT_YEAR)
   const createTithe = useCreateTithe()
   const updateTithe = useUpdateTithe()
@@ -94,16 +94,16 @@ export function Tithes() {
     })
   }
 
-  if (matrizLoading || isLoading) {
-    return <div className="p-8 text-center text-muted-foreground">Carregando...</div>
+  if (matrizLoading || (matrizChurchId && tithesLoading)) {
+    return <div className="p-8 text-center text-muted-foreground">Carregando dízimos da paróquia...</div>
   }
 
-  if (!matrizChurch) {
+  if (!matrizChurchId) {
     return (
       <EmptyState
         icon={HandCoins}
-        title="Igreja matriz não encontrada"
-        description='Cadastre uma igreja com "(Matriz)" no nome para vincular os dízimos ao registro da paróquia.'
+        title="Registro da paróquia não encontrado"
+        description={`Peça ao administrador para manter um cadastro com o nome "${PARISH_NAME}" ou "Quase-Paróquia" (sem ser capela).`}
       />
     )
   }
